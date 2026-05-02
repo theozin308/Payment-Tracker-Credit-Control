@@ -31,7 +31,7 @@ def get_live_data():
 try:
     df = get_live_data()
 
-    st.title("Payment Tracker")
+    st.title("Fortune Commercial City Payment Tracker")
     st.divider()
 
     # --- SELECTION AREA ---
@@ -51,7 +51,7 @@ try:
 
     # --- INTERACTIVE TABLE VIEW ---
     if selected_sales != "-- All Sales --":
-        st.subheader(f"📊 Unit Summary for {selected_sales}")
+        st.subheader(f"Unit Summary for {selected_sales}")
         st.caption("Click anywhere on a row to view the full details below.")
         
         summary_table = filtered_df[['Plot No.', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']]
