@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # --- APP CONFIGURATION ---
-st.set_page_config(page_title="EFD Sales Tracker", layout="wide")
+st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
 
 # --- CSS TO HIDE THE SELECTION COLUMN & STYLE THE TABLE ---
 st.markdown("""
