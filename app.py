@@ -33,47 +33,58 @@ try:
 
     with col_b:
         unit_list = filtered_df['Plot No.'].dropna().unique()
-        # Dropdown remains for manual selection
-        selected_unit = st.selectbox("🎯 Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
+        # Initializing session state for the selected unit to allow table clicks to update it
+        if 'selected_unit' not in st.session_state:
+            st.session_state.selected_unit = "-- Select --"
+            
+        selected_unit = st.selectbox(
+            "🎯 Choose Unit / Plot No.", 
+            options=["-- Select --"] + list(unit_list),
+            key="unit_dropdown"
+        )
 
-    # --- SALES PERSON TABLE VIEW (INTERACTIVE) ---
+    # --- INTERACTIVE TABLE VIEW ---
     if selected_sales != "-- All Sales --":
         st.subheader(f"📊 Unit Summary for {selected_sales}")
+        st.caption("Click anywhere on a row to view full details below.")
         
+        # We only show the most relevant columns in the summary table
         summary_table = filtered_df[['Plot No.', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']]
         
-        # Enable row selection in the dataframe
+        # This creates the clickable row behavior
         event = st.dataframe(
             summary_table, 
             use_container_width=True, 
             hide_index=True,
-            on_select="rerun",  # This triggers the app to update when a row is clicked
+            on_select="rerun",
             selection_mode="single-row"
         )
 
-        # Logic to update selected_unit based on table click
-        if len(event.selection.rows) > 0:
+        # If a row is clicked, override the selected_unit
+        if event.selection.rows:
             selected_row_index = event.selection.rows[0]
             selected_unit = summary_table.iloc[selected_row_index]['Plot No.']
 
-    # --- DETAIL INFO PANE (Appears under the table when a row or dropdown is selected) ---
+    # --- DETAIL INFO PANE ---
     if selected_unit != "-- Select --":
         unit_row = df[df['Plot No.'] == selected_unit].iloc[0]
 
         st.divider()
-        st.header(f"🔍 Viewing Unit: {selected_unit}")
+        st.header(f"🔍 Unit Detail: {selected_unit}")
         
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            st.subheader("📋 Detailed Info")
+            st.subheader("📋 Complete Information")
+            # This maintains your original vertical table view
             display_df = unit_row.to_frame()
             display_df.columns = ["Value"]
             st.table(display_df)
 
         with col2:
-            st.subheader("Payment Status")
+            st.subheader("🏥 Payment Status")
             
+            # Extracting data for metrics
             amt_this_month = unit_row.get('Amount to Collect for This Month', '0')
             past_due = unit_row.get('Past Due Amount', '0')
             total_collect = unit_row.get('Total Amount to Collect', '0')
@@ -92,6 +103,7 @@ try:
             st.caption(f"({amt_this_month} Current + {past_due} Past Due)")
 
             st.write("---")
+            # Logic for color-coded status boxes
             if "pending" in current_status.lower():
                 st.error(f"🔴 Status: {current_status}")
                 st.warning(f"⚠️ {overdue_status}")
