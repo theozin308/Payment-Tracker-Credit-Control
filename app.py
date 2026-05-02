@@ -4,12 +4,14 @@ import pandas as pd
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="EFD Sales Tracker", layout="wide")
 
-# --- CSS HACK TO HIDE CHECKBOXES ---
+# --- CSS TO HIDE THE SELECTION COLUMN & STYLE THE TABLE ---
 st.markdown("""
     <style>
+    /* Hide the selection checkbox column specifically for the interactive dataframe */
     [data-testid="stMain"] [data-testid="stDataFrameDataLayer"] > div:first-child {
         display: none !important;
     }
+    /* Ensure the table rows look clickable */
     [data-testid="stDataFrameDataLayer"] {
         cursor: pointer;
     }
@@ -47,14 +49,14 @@ try:
         unit_list = filtered_df['Plot No.'].dropna().unique()
         selected_unit = st.selectbox("🎯 Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
 
-    # --- CONDITIONAL TABLE VIEW ---
-    # This table ONLY shows if no specific unit is selected
-    if selected_unit == "-- Select --":
-        st.subheader(f"📊 Overdue Portfolio: {selected_sales}")
-        st.caption("Click any row to view full details. This table will hide once a unit is selected.")
+    # --- INTERACTIVE TABLE VIEW ---
+    if selected_sales != "-- All Sales --":
+        st.subheader(f"📊 Unit Summary for {selected_sales}")
+        st.caption("Click anywhere on a row to view the full details below.")
         
         summary_table = filtered_df[['Plot No.', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']]
         
+        # Using selection_mode="single-row" with CSS hiding the checkbox
         event = st.dataframe(
             summary_table, 
             use_container_width=True, 
@@ -63,22 +65,16 @@ try:
             selection_mode="single-row"
         )
 
-        # Update selection if a row is clicked
+        # Update selection if row is clicked
         if event.selection.rows:
             selected_row_index = event.selection.rows[0]
             selected_unit = summary_table.iloc[selected_row_index]['Plot No.']
-            st.rerun() # Refresh to hide the table and show details
 
     # --- DETAIL INFO PANE ---
-    # This shows ONLY when a unit is selected
     if selected_unit != "-- Select --":
         unit_row = df[df['Plot No.'] == selected_unit].iloc[0]
 
         st.divider()
-        # Button to go back to the main list
-        if st.button("⬅️ Back to Portfolio List"):
-            st.rerun()
-
         st.header(f"🔍 Viewing Unit: {selected_unit}")
         
         col1, col2 = st.columns([2, 1])
@@ -101,6 +97,7 @@ try:
 
             st.metric(label="Amount to Collect for This Month", value=amt_this_month)
             st.metric(label="Current Billing Month", value=bill_month)
+            
             st.metric(
                 label="Total Amount to Collect", 
                 value=total_collect, 
