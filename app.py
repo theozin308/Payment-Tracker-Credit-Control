@@ -1,42 +1,42 @@
 import streamlit as st
 import pandas as pd
 
-# --- CONFIGURATION ---
-# Replace SPREADSHEET_ID with the actual ID from your URL
-SHEET_ID = "your_actual_id_here"
-SHEET_NAME = "Sheet1"  # Or your specific sheet name
-URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+# --- APP CONFIGURATION ---
+st.set_page_config(page_title="Unit Information Portal", layout="centered")
 
-# --- APP LAYOUT ---
-st.set_page_config(page_title="Property Portfolio", layout="centered")
-st.title("🏗️ Property Unit Portal")
+# The Live Link from Step 1
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1aH4ycuqzoqmoiTx5dp2pqO9ftji79dpleeyfSxI8s5M/gviz/tq?tqx=out:csv"
 
-# Function to load live data
-@st.cache_data(ttl=600) # Clears cache every 10 minutes to fetch new data
-def load_data():
-    return pd.read_csv(URL)
+# --- DATA LOADING ---
+@st.cache_data(ttl=300) # This refreshes the app every 5 minutes automatically
+def get_live_data():
+    return pd.read_csv(SHEET_URL)
 
 try:
-    df = load_data()
+    df = get_live_data()
 
-    # 1. Start Page / Dropdown
-    plot_list = df['Plot No.'].dropna().unique()
-    selected_plot = st.selectbox("Select Unit or Plot No.", options=["-- Choose --"] + list(plot_list))
+    # --- START PAGE / SELECTION ---
+    st.title("🏙️ Property Unit Viewer")
+    st.write("Please select a unit to view current status and payment details.")
 
-    if selected_plot != "-- Choose --":
-        # 2. Filter for the selected row
-        unit_data = df[df['Plot No.'] == selected_plot]
+    # Dropdown for Plot No (matches your image_d09aff.png headers)
+    unit_list = df['Plot No.'].dropna().unique()
+    selected_unit = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
+
+    if selected_unit != "-- Select --":
+        # Filter for the specific unit
+        row_data = df[df['Plot No.'] == selected_unit]
 
         st.divider()
-        st.subheader(f"Unit Details: {selected_plot}")
+        st.subheader(f"Detailed Info: {selected_unit}")
 
-        # 3. Transpose Data for Vertical View
-        # We select the first matching row and transpose it
-        details = unit_data.iloc[0].to_frame()
-        details.columns = ["Value"]
+        # --- TRANSPOSE LOGIC ---
+        # Convert the horizontal row into a vertical table
+        display_df = row_data.iloc[0].to_frame()
+        display_df.columns = ["Current Status"]
         
-        # Display as a clean table
-        st.table(details)
+        # Display as a clean, vertical table
+        st.table(display_df)
 
 except Exception as e:
-    st.error("Could not connect to Google Sheets. Check your link sharing permissions.")
+    st.error("Check your Google Sheet Sharing settings or column names.")
