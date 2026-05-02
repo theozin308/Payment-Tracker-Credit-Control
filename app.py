@@ -18,38 +18,37 @@ try:
     df = get_live_data()
 
     st.title("Payment Tracker")
-    
-    # --- SELECTION AREA: TWO COLUMNS ---
-    select_col1, select_col2 = st.columns(2)
+    st.divider()
 
-    with select_col1:
+    # --- SELECTION AREA ---
+    col_a, col_b = st.columns(2)
+
+    with col_a:
         # 1. Sales Person Selection
-        sales_list = df['Sales Person'].dropna().unique()
-        selected_sales = st.selectbox("Filter by Sales Person", options=["-- All Sales --"] + list(sales_list))
+        sales_people = df['Sales Person'].dropna().unique()
+        selected_sales = st.selectbox("👤 Filter by Sales Person", options=["-- All Sales --"] + list(sales_people))
 
-    # Filter data based on Sales Person selection
+    # Filter dataframe based on sales person selection
     filtered_df = df.copy()
     if selected_sales != "-- All Sales --":
         filtered_df = df[df['Sales Person'] == selected_sales]
 
-    with select_col2:
+    with col_b:
         # 2. Unit Selection (Filtered by the chosen Sales Person)
         unit_list = filtered_df['Plot No.'].dropna().unique()
-        selected_unit = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
+        selected_unit = st.selectbox("🎯 Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
 
     # --- SALES PERSON TABLE VIEW ---
-    # Show this only if a Sales Person is selected but a specific Unit is NOT yet selected
     if selected_sales != "-- All Sales --" and selected_unit == "-- Select --":
-        st.divider()
-        st.subheader(f"📊 Summary for {selected_sales}")
-        
-        # Select specific columns to show in the overview table
-        summary_columns = ['Plot No.', 'Customer Name', 'Current Billing Month', 'Total Amount to Collect', 'Status']
-        st.dataframe(filtered_df[summary_columns], use_container_width=True, hide_index=True)
+        st.subheader(f"📊 Unit Summary for {selected_sales}")
+        # Show a clean summary table for the salesperson to see their overall targets
+        summary_table = filtered_df[['Plot No.', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']]
+        st.dataframe(summary_table, use_container_width=True, hide_index=True)
+        st.info("💡 Select a specific 'Plot No.' from the dropdown above to see the full Payment Health pane.")
 
-    # --- INDIVIDUAL UNIT DETAIL VIEW ---
+    # --- DETAIL INFO PANE (Triggered when unit is selected) ---
     if selected_unit != "-- Select --":
-        unit_row = filtered_df[filtered_df['Plot No.'] == selected_unit].iloc[0]
+        unit_row = df[df['Plot No.'] == selected_unit].iloc[0]
 
         st.divider()
         col1, col2 = st.columns([2, 1])
@@ -72,6 +71,7 @@ try:
 
             st.metric(label="Amount to Collect for This Month", value=amt_this_month)
             st.metric(label="Current Billing Month", value=bill_month)
+            
             st.metric(
                 label="Total Amount to Collect", 
                 value=total_collect, 
@@ -92,4 +92,4 @@ try:
 
 except Exception as e:
     st.error("Data Sync Error")
-    st.info(f"Check your Google Sheet column names. Error details: {e}")
+    st.info(f"Details: {e}")
