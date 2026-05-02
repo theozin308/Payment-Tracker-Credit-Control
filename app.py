@@ -47,7 +47,7 @@ try:
 
     with col_b:
         unit_list = filtered_df['Plot No.'].dropna().unique()
-        selected_unit = st.selectbox("🎯 Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
+        selected_unit = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
 
     # --- INTERACTIVE TABLE VIEW ---
     if selected_sales != "-- All Sales --":
