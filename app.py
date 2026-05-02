@@ -24,37 +24,49 @@ try:
     col_a, col_b = st.columns(2)
 
     with col_a:
-        # 1. Sales Person Selection
         sales_people = df['Sales Person'].dropna().unique()
         selected_sales = st.selectbox("👤 Filter by Sales Person", options=["-- All Sales --"] + list(sales_people))
 
-    # Filter dataframe based on sales person selection
     filtered_df = df.copy()
     if selected_sales != "-- All Sales --":
         filtered_df = df[df['Sales Person'] == selected_sales]
 
     with col_b:
-        # 2. Unit Selection (Filtered by the chosen Sales Person)
         unit_list = filtered_df['Plot No.'].dropna().unique()
+        # Dropdown remains for manual selection
         selected_unit = st.selectbox("🎯 Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
 
-    # --- SALES PERSON TABLE VIEW ---
-    if selected_sales != "-- All Sales --" and selected_unit == "-- Select --":
+    # --- SALES PERSON TABLE VIEW (INTERACTIVE) ---
+    if selected_sales != "-- All Sales --":
         st.subheader(f"📊 Unit Summary for {selected_sales}")
-        # Show a clean summary table for the salesperson to see their overall targets
+        
         summary_table = filtered_df[['Plot No.', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']]
-        st.dataframe(summary_table, use_container_width=True, hide_index=True)
-        st.info("💡 Select a specific 'Plot No.' from the dropdown above to see the full Payment Health pane.")
+        
+        # Enable row selection in the dataframe
+        event = st.dataframe(
+            summary_table, 
+            use_container_width=True, 
+            hide_index=True,
+            on_select="rerun",  # This triggers the app to update when a row is clicked
+            selection_mode="single-row"
+        )
 
-    # --- DETAIL INFO PANE (Triggered when unit is selected) ---
+        # Logic to update selected_unit based on table click
+        if len(event.selection.rows) > 0:
+            selected_row_index = event.selection.rows[0]
+            selected_unit = summary_table.iloc[selected_row_index]['Plot No.']
+
+    # --- DETAIL INFO PANE (Appears under the table when a row or dropdown is selected) ---
     if selected_unit != "-- Select --":
         unit_row = df[df['Plot No.'] == selected_unit].iloc[0]
 
         st.divider()
+        st.header(f"🔍 Viewing Unit: {selected_unit}")
+        
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            st.subheader(f"📋 Detailed Info: {selected_unit}")
+            st.subheader("📋 Detailed Info")
             display_df = unit_row.to_frame()
             display_df.columns = ["Value"]
             st.table(display_df)
