@@ -50,13 +50,13 @@ try:
         selected_unit = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
 
     # --- INTERACTIVE TABLE VIEW ---
-    if selected_sales != "-- All Sales --":
+    # Hide the summary table as soon as a unit is selected to keep the focus on details
+    if selected_sales != "-- All Sales --" and selected_unit == "-- Select --":
         st.subheader(f"Unit Summary for {selected_sales}")
         st.caption("Click anywhere on a row to view the full details below.")
         
         summary_table = filtered_df[['Plot No.', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']]
         
-        # Using selection_mode="single-row" with CSS hiding the checkbox
         event = st.dataframe(
             summary_table, 
             use_container_width=True, 
@@ -65,16 +65,19 @@ try:
             selection_mode="single-row"
         )
 
-        # Update selection if row is clicked
         if event.selection.rows:
             selected_row_index = event.selection.rows[0]
             selected_unit = summary_table.iloc[selected_row_index]['Plot No.']
+            st.rerun()
 
     # --- DETAIL INFO PANE ---
     if selected_unit != "-- Select --":
         unit_row = df[df['Plot No.'] == selected_unit].iloc[0]
 
         st.divider()
+        if st.button("⬅️ Back to Portfolio List"):
+            st.rerun()
+
         st.header(f"🔍 Viewing Unit: {selected_unit}")
         
         col1, col2 = st.columns([2, 1])
@@ -86,7 +89,7 @@ try:
             st.table(display_df)
 
         with col2:
-            st.subheader("Payment Status")
+            st.subheader("Payment Health")
             
             amt_this_month = unit_row.get('Amount to Collect for This Month', '0')
             past_due = unit_row.get('Past Due Amount', '0')
@@ -106,11 +109,25 @@ try:
             st.caption(f"({amt_this_month} Current + {past_due} Past Due)")
 
             st.write("---")
-            if "pending" in current_status.lower():
-                st.error(f"🔴 Status: {current_status}")
-                st.warning(f"⚠️ {overdue_status}")
-            else:
+            
+            # --- NEW STATUS LOGIC ---
+            if current_status.lower() == "complete":
                 st.success(f"🟢 Status: {current_status}")
+                st.info("✅ All current payments are up to date.")
+            
+            elif current_status.lower() == "partial":
+                st.warning(f"🟡 Status: {current_status}")
+                st.write(f"⚠️ Partial payment received for this month.")
+                if past_due != "0":
+                    st.caption(f"Note: Still has {past_due} in arrears.")
+
+            elif current_status.lower() == "outstanding":
+                st.error(f"🔴 Status: {current_status}")
+                st.warning(f"🚨 {overdue_status}")
+            
+            else:
+                # Fallback for other statuses like 'Pending'
+                st.info(f"⚪ Status: {current_status}")
 
             st.write("---")
             st.caption("Last payment recorded on:")
