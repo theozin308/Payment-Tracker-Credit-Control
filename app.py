@@ -7,11 +7,9 @@ st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
 # --- CSS TO HIDE THE SELECTION COLUMN & STYLE THE TABLE ---
 st.markdown("""
     <style>
-    /* Hide the selection checkbox column specifically for the interactive dataframe */
     [data-testid="stMain"] [data-testid="stDataFrameDataLayer"] > div:first-child {
         display: none !important;
     }
-    /* Ensure the table rows look clickable */
     [data-testid="stDataFrameDataLayer"] {
         cursor: pointer;
     }
@@ -90,26 +88,28 @@ try:
         with col2:
             st.subheader("Payment Health")
             
-            # --- EXTRACTING DATA FROM YOUR NEW COLUMN ---
+            # --- EXTRACTING DATA ---
             amt_this_month = unit_row.get('Amount to Collect for This Month', '0')
-            partial_deposited = unit_row.get('Partial Payment for Current Month', '0') # Updated column name
+            partial_deposited = unit_row.get('Partial Payment for Current Month', '0')
             past_due = unit_row.get('Past Due Amount', '0')
             total_collect = unit_row.get('Total Amount to Collect', '0')
+            total_paid = unit_row.get('Total Paid', '0')
             bill_month = unit_row.get('Current Billing Month', 'N/A')
             overdue_status = unit_row.get('Months Overdue', '0 month due')
             current_status = str(unit_row.get('Status', 'Pending')).strip()
 
-            # --- DISPLAY METRICS ---
-            st.metric(label="Total Amount for This Month", value=amt_this_month)
+            # --- DISPLAY METRICS WITH LAKHS ---
+            st.metric(label="Total Amount for This Month", value=f"{amt_this_month} Lakhs")
             
-            # This now takes data from 'Partial Payment for Current Month'
-            st.metric(label="Partial Amount Deposited", value=partial_deposited)
+            st.metric(label="Partial Amount Deposited", value=f"{partial_deposited} Lakhs")
+            
+            st.metric(label="Total Paid", value=f"{total_paid} Lakhs")
             
             st.metric(label="Current Billing Month", value=bill_month)
             
             st.metric(
                 label="Total Amount to Collect", 
-                value=total_collect, 
+                value=f"{total_collect} Lakhs", 
                 help="Includes Current Month + Past Due Amount"
             )
             st.caption(f"({amt_this_month} Current + {past_due} Past Due)")
@@ -122,7 +122,7 @@ try:
             
             elif current_status.lower() == "partial":
                 st.warning(f"🟡 Status: {current_status}")
-                st.info(f"💰 {partial_deposited} deposited out of {amt_this_month} due this month.")
+                st.info(f"💰 {partial_deposited} Lakhs deposited out of {amt_this_month} Lakhs due this month.")
 
             elif current_status.lower() == "outstanding":
                 st.error(f"🔴 Status: {current_status}")
