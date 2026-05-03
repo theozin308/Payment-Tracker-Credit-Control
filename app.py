@@ -75,12 +75,12 @@ try:
         if st.button("⬅️ Back to Portfolio List"):
             st.rerun()
 
-        st.header(f"🔍 Viewing Unit: {selected_unit}")
+        st.header(f"Viewing Unit: {selected_unit}")
         
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            st.subheader("📋 Detailed Info")
+            st.subheader("Detailed Info")
             display_df = unit_row.to_frame()
             display_df.columns = ["Value"]
             st.table(display_df)
