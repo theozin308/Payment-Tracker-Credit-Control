@@ -7,11 +7,9 @@ st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
 # --- CSS TO HIDE THE SELECTION COLUMN & STYLE THE TABLE ---
 st.markdown("""
     <style>
-    /* Hide the selection checkbox column specifically for the interactive dataframe */
     [data-testid="stMain"] [data-testid="stDataFrameDataLayer"] > div:first-child {
         display: none !important;
     }
-    /* Ensure the table rows look clickable */
     [data-testid="stDataFrameDataLayer"] {
         cursor: pointer;
     }
@@ -50,7 +48,6 @@ try:
         selected_unit = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
 
     # --- INTERACTIVE TABLE VIEW ---
-    # Hide the summary table as soon as a unit is selected to keep the focus on details
     if selected_sales != "-- All Sales --" and selected_unit == "-- Select --":
         st.subheader(f"Unit Summary for {selected_sales}")
         st.caption("Click anywhere on a row to view the full details below.")
@@ -91,14 +88,21 @@ try:
         with col2:
             st.subheader("Payment Health")
             
+            # --- EXTRACTING DATA ---
             amt_this_month = unit_row.get('Amount to Collect for This Month', '0')
+            partial_deposited = unit_row.get('Partial Payment for This Month', '0') # Your new column
             past_due = unit_row.get('Past Due Amount', '0')
             total_collect = unit_row.get('Total Amount to Collect', '0')
             bill_month = unit_row.get('Current Billing Month', 'N/A')
             overdue_status = unit_row.get('Months Overdue', '0 month due')
             current_status = str(unit_row.get('Status', 'Pending')).strip()
 
-            st.metric(label="Amount to Collect for This Month", value=amt_this_month)
+            # --- DISPLAY METRICS ---
+            st.metric(label="Total Amount for This Month", value=amt_this_month)
+            
+            # Highlight the Partial Deposit
+            st.metric(label="Partial Amount Deposited", value=partial_deposited, delta="Current Month Payment" if partial_deposited != "0" else None)
+            
             st.metric(label="Current Billing Month", value=bill_month)
             
             st.metric(
@@ -110,23 +114,21 @@ try:
 
             st.write("---")
             
-            # --- NEW STATUS LOGIC ---
+            # --- UPDATED STATUS LOGIC ---
             if current_status.lower() == "complete":
                 st.success(f"🟢 Status: {current_status}")
-                st.info("✅ All current payments are up to date.")
             
             elif current_status.lower() == "partial":
                 st.warning(f"🟡 Status: {current_status}")
-                st.write(f"⚠️ Partial payment received for this month.")
+                st.info(f"💰 {partial_deposited} has been deposited out of {amt_this_month} due.")
                 if past_due != "0":
-                    st.caption(f"Note: Still has {past_due} in arrears.")
+                    st.caption(f"Arrears: {past_due} still remains from previous periods.")
 
             elif current_status.lower() == "outstanding":
                 st.error(f"🔴 Status: {current_status}")
                 st.warning(f"🚨 {overdue_status}")
             
             else:
-                # Fallback for other statuses like 'Pending'
                 st.info(f"⚪ Status: {current_status}")
 
             st.write("---")
