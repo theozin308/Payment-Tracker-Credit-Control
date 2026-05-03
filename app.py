@@ -7,9 +7,11 @@ st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
 # --- CSS TO HIDE THE SELECTION COLUMN & STYLE THE TABLE ---
 st.markdown("""
     <style>
+    /* Hide the selection checkbox column specifically for the interactive dataframe */
     [data-testid="stMain"] [data-testid="stDataFrameDataLayer"] > div:first-child {
         display: none !important;
     }
+    /* Ensure the table rows look clickable */
     [data-testid="stDataFrameDataLayer"] {
         cursor: pointer;
     }
@@ -88,9 +90,9 @@ try:
         with col2:
             st.subheader("Payment Health")
             
-            # --- EXTRACTING DATA ---
+            # --- EXTRACTING DATA FROM YOUR NEW COLUMN ---
             amt_this_month = unit_row.get('Amount to Collect for This Month', '0')
-            partial_deposited = unit_row.get('Partial Payment for This Month', '0') # Your new column
+            partial_deposited = unit_row.get('Partial Payment for Current Month', '0') # Updated column name
             past_due = unit_row.get('Past Due Amount', '0')
             total_collect = unit_row.get('Total Amount to Collect', '0')
             bill_month = unit_row.get('Current Billing Month', 'N/A')
@@ -100,8 +102,8 @@ try:
             # --- DISPLAY METRICS ---
             st.metric(label="Total Amount for This Month", value=amt_this_month)
             
-            # Highlight the Partial Deposit
-            st.metric(label="Partial Amount Deposited", value=partial_deposited, delta="Current Month Payment" if partial_deposited != "0" else None)
+            # This now takes data from 'Partial Payment for Current Month'
+            st.metric(label="Partial Amount Deposited", value=partial_deposited)
             
             st.metric(label="Current Billing Month", value=bill_month)
             
@@ -114,15 +116,13 @@ try:
 
             st.write("---")
             
-            # --- UPDATED STATUS LOGIC ---
+            # --- STATUS LOGIC ---
             if current_status.lower() == "complete":
                 st.success(f"🟢 Status: {current_status}")
             
             elif current_status.lower() == "partial":
                 st.warning(f"🟡 Status: {current_status}")
-                st.info(f"💰 {partial_deposited} has been deposited out of {amt_this_month} due.")
-                if past_due != "0":
-                    st.caption(f"Arrears: {past_due} still remains from previous periods.")
+                st.info(f"💰 {partial_deposited} deposited out of {amt_this_month} due this month.")
 
             elif current_status.lower() == "outstanding":
                 st.error(f"🔴 Status: {current_status}")
