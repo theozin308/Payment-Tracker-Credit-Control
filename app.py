@@ -48,8 +48,8 @@ try:
     if selected_sales != "-- All Sales --":
         filtered_df = df[df['Sales Person'] == selected_sales]
 
-    # --- NEW: DUE STATUS BUTTONS ---
-    st.write("### 🔍 Quick Filters")
+    # --- QUICK FILTERS ---
+    st.write("### Quick Filters")
     c1, c2, c3 = st.columns(3)
     
     if c1.button("📑 Show All Units", type="secondary" if st.session_state.due_filter != "All" else "primary"):
@@ -64,16 +64,23 @@ try:
         st.session_state.due_filter = "Overdue"
         st.rerun()
 
-    # Apply the Quick Filters
+    # Define columns to show in the table
+    # Added 'Sales Person' to the base list
+    base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
+
+    # Apply the Quick Filters & Adjust Columns
     if st.session_state.due_filter == "Current":
-        # Usually '0 month due' or Status 'Outstanding' with 0 months
         filtered_df = filtered_df[filtered_df['overdue_val'] == 0]
+        display_cols = base_cols
     elif st.session_state.due_filter == "Overdue":
         filtered_df = filtered_df[filtered_df['overdue_val'] >= 1]
+        # Insert 'Past Due Amount' specifically for this view
+        display_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Past Due Amount', 'Total Amount to Collect', 'Status', 'Months Overdue']
+    else:
+        display_cols = base_cols
 
     with col_b:
         unit_list = filtered_df['Plot No.'].dropna().unique()
-        # Dropdown selection logic
         current_index = 0
         if st.session_state.selected_unit in unit_list:
             current_index = list(unit_list).index(st.session_state.selected_unit) + 1
@@ -88,7 +95,9 @@ try:
     if st.session_state.selected_unit == "-- Select --":
         st.subheader(f"Results: {st.session_state.due_filter} ({len(filtered_df)} Units)")
         
-        summary_table = filtered_df[['Plot No.', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']]
+        # Filter columns to only those that exist in the CSV to prevent errors
+        summary_cols = [c for c in display_cols if c in filtered_df.columns]
+        summary_table = filtered_df[summary_cols]
         
         event = st.dataframe(
             summary_table, 
@@ -112,7 +121,8 @@ try:
             st.rerun()
             
         st.header(f"Unit Detail: {st.session_state.selected_unit}")
-        # (Your existing metric and table display logic here...)
+        
+        # Show everything in the detailed table
         st.table(unit_data.to_frame(name="Value"))
 
 except Exception as e:
