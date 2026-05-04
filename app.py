@@ -22,11 +22,12 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1aH4ycuqzoqmoiTx5dp2pqO9ftji79dpleeyfSxI8s5M/gviz/tq?tqx=out:csv"
 
 # --- SESSION STATE ---
-# Defaulting the filter to "Overdue" so it loads first
 if "selected_unit" not in st.session_state:
     st.session_state.selected_unit = "-- Select --"
+
+# DEFAULT VIEW SET TO "All"
 if "due_filter" not in st.session_state:
-    st.session_state.due_filter = "Overdue" 
+    st.session_state.due_filter = "All" 
 
 @st.cache_data(ttl=60) 
 def get_live_data():
@@ -37,10 +38,10 @@ def get_live_data():
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
     
-    # Convert 'Months Overdue' to numeric for sorting
+    # Convert 'Months Overdue' to numeric
     df['overdue_val'] = pd.to_numeric(df['Months Overdue'].str.extract('(\d+)')[0], errors='coerce').fillna(0)
     
-    # Global Sort: Highest Overdue at the top
+    # Sort: Highest Overdue first
     df = df.sort_values(by='overdue_val', ascending=False)
     return df
 
@@ -71,7 +72,7 @@ try:
             st.session_state.selected_unit = selected_unit_box
             st.rerun()
 
-    # --- ROW 2: BUTTON LAYOUT (REORDERED) ---
+    # --- ROW 2: BUTTON LAYOUT ---
     st.markdown("### 🔍 Quick Filters")
     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
     
@@ -98,9 +99,9 @@ try:
         display_cols = base_cols
     elif st.session_state.due_filter == "Overdue":
         filtered_df = filtered_df[filtered_df['overdue_val'] >= 1]
-        # Include Past Due Amount for the overdue view
         display_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Past Due Amount', 'Total Amount to Collect', 'Status', 'Months Overdue']
     else:
+        # "All Units" view includes everyone
         display_cols = base_cols
 
     # --- DASHBOARD VIEW ---
