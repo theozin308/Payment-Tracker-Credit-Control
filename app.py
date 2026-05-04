@@ -28,6 +28,12 @@ if "due_filter" not in st.session_state:
 def get_live_data():
     df = pd.read_csv(SHEET_URL, dtype=str)
     df.columns = df.columns.str.strip() 
+    
+    # --- FIX: HIDE "NONE" ROWS ---
+    # Drop rows where 'Plot No.' is NaN or the string "None" or "nan"
+    df = df[df['Plot No.'].notna()]
+    df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', ''])]
+    
     # Helper: Convert 'Months Overdue' to numeric for filtering
     df['overdue_val'] = pd.to_numeric(df['Months Overdue'].str.extract('(\d+)')[0], errors='coerce').fillna(0)
     return df
@@ -49,7 +55,7 @@ try:
         filtered_df = df[df['Sales Person'] == selected_sales]
 
     # --- QUICK FILTERS ---
-    st.write("### Quick Filters")
+    st.write("### 🔍 Quick Filters")
     c1, c2, c3 = st.columns(3)
     
     if c1.button("📑 Show All Units", type="secondary" if st.session_state.due_filter != "All" else "primary"):
@@ -64,17 +70,14 @@ try:
         st.session_state.due_filter = "Overdue"
         st.rerun()
 
-    # Define columns to show in the table
-    # Added 'Sales Person' to the base list
+    # --- DYNAMIC COLUMN LOGIC ---
     base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
 
-    # Apply the Quick Filters & Adjust Columns
     if st.session_state.due_filter == "Current":
         filtered_df = filtered_df[filtered_df['overdue_val'] == 0]
         display_cols = base_cols
     elif st.session_state.due_filter == "Overdue":
         filtered_df = filtered_df[filtered_df['overdue_val'] >= 1]
-        # Insert 'Past Due Amount' specifically for this view
         display_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Past Due Amount', 'Total Amount to Collect', 'Status', 'Months Overdue']
     else:
         display_cols = base_cols
@@ -95,7 +98,6 @@ try:
     if st.session_state.selected_unit == "-- Select --":
         st.subheader(f"Results: {st.session_state.due_filter} ({len(filtered_df)} Units)")
         
-        # Filter columns to only those that exist in the CSV to prevent errors
         summary_cols = [c for c in display_cols if c in filtered_df.columns]
         summary_table = filtered_df[summary_cols]
         
@@ -121,8 +123,6 @@ try:
             st.rerun()
             
         st.header(f"Unit Detail: {st.session_state.selected_unit}")
-        
-        # Show everything in the detailed table
         st.table(unit_data.to_frame(name="Value"))
 
 except Exception as e:
