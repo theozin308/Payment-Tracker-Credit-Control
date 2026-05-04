@@ -25,7 +25,6 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1aH4ycuqzoqmoiTx5dp2pqO9ftji
 if "selected_unit" not in st.session_state:
     st.session_state.selected_unit = "-- Select --"
 
-# DEFAULT VIEW SET TO "All"
 if "due_filter" not in st.session_state:
     st.session_state.due_filter = "All" 
 
@@ -38,16 +37,17 @@ def get_live_data():
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
     
-    # Convert 'Months Overdue' to numeric
+    # --- SORTING LOGIC: SORT BY PLOT NO. GLOBALLY ---
+    df = df.sort_values(by='Plot No.')
+    
+    # Helper: Convert 'Months Overdue' to numeric for filtering
     df['overdue_val'] = pd.to_numeric(df['Months Overdue'].str.extract('(\d+)')[0], errors='coerce').fillna(0)
     
-    # Sort: Highest Overdue first
-    df = df.sort_values(by='overdue_val', ascending=False)
     return df
 
 try:
     df = get_live_data()
-    st.title("Fortune Commercial City Payment Tracker")
+    st.title("🏙️ Fortune Commercial City Payment Tracker")
     st.divider()
 
     # --- ROW 1: PRIMARY FILTERS ---
@@ -62,6 +62,7 @@ try:
         filtered_df = df[df['Sales Person'] == selected_sales]
 
     with col_b:
+        # Plot No list is already sorted from get_live_data
         unit_list = filtered_df['Plot No.'].unique()
         curr_idx = 0
         if st.session_state.selected_unit in unit_list:
@@ -73,7 +74,7 @@ try:
             st.rerun()
 
     # --- ROW 2: BUTTON LAYOUT ---
-    st.markdown("### Quick Filters")
+    st.markdown("### 🔍 Quick Filters")
     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
     
     with c1:
@@ -101,7 +102,6 @@ try:
         filtered_df = filtered_df[filtered_df['overdue_val'] >= 1]
         display_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Past Due Amount', 'Total Amount to Collect', 'Status', 'Months Overdue']
     else:
-        # "All Units" view includes everyone
         display_cols = base_cols
 
     # --- DASHBOARD VIEW ---
@@ -110,6 +110,7 @@ try:
         
         summary_cols = [c for c in display_cols if c in filtered_df.columns]
         
+        # The table remains sorted by Plot No.
         event = st.dataframe(
             filtered_df[summary_cols], 
             use_container_width=True, 
