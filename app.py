@@ -4,7 +4,7 @@ import pandas as pd
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
 
-# --- CSS TO HIDE THE SELECTION COLUMN & STYLE THE TABLE ---
+# --- CSS TO STYLE THE TABLE ---
 st.markdown("""
     <style>
     [data-testid="stMain"] [data-testid="stDataFrameDataLayer"] > div:first-child {
@@ -18,6 +18,10 @@ st.markdown("""
 
 # The Live Link
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1aH4ycuqzoqmoiTx5dp2pqO9ftji79dpleeyfSxI8s5M/gviz/tq?tqx=out:csv"
+
+# --- SESSION STATE INITIALIZATION ---
+if "selected_unit" not in st.session_state:
+    st.session_state.selected_unit = "-- Select --"
 
 # --- DATA LOADING ---
 @st.cache_data(ttl=60) 
@@ -39,18 +43,29 @@ try:
         sales_people = df['Sales Person'].dropna().unique()
         selected_sales = st.selectbox("👤 Filter by Sales Person", options=["-- All Sales --"] + list(sales_people))
 
+    # Filter data based on sales person
     filtered_df = df.copy()
     if selected_sales != "-- All Sales --":
         filtered_df = df[df['Sales Person'] == selected_sales]
 
     with col_b:
         unit_list = filtered_df['Plot No.'].dropna().unique()
-        selected_unit = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list))
+        # We sync the selectbox with session_state
+        selected_unit_box = st.selectbox(
+            "Choose Unit / Plot No.", 
+            options=["-- Select --"] + list(unit_list),
+            key="unit_selector_box",
+            index=0 if st.session_state.selected_unit not in unit_list else list(unit_list).index(st.session_state.selected_unit) + 1
+        )
+        # Update session state if user uses dropdown
+        if selected_unit_box != st.session_state.selected_unit:
+            st.session_state.selected_unit = selected_unit_box
 
     # --- INTERACTIVE TABLE VIEW ---
-    if selected_sales != "-- All Sales --" and selected_unit == "-- Select --":
+    # Show summary only if a sales person is picked but no specific unit is chosen yet
+    if selected_sales != "-- All Sales --" and st.session_state.selected_unit == "-- Select --":
         st.subheader(f"Unit Summary for {selected_sales}")
-        st.caption("Click anywhere on a row to view the full details below.")
+        st.caption("Click a row to view details.")
         
         summary_table = filtered_df[['Plot No.', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']]
         
@@ -62,78 +77,79 @@ try:
             selection_mode="single-row"
         )
 
-        if event.selection.rows:
+        # Handle row selection
+        if len(event.selection.rows) > 0:
             selected_row_index = event.selection.rows[0]
-            selected_unit = summary_table.iloc[selected_row_index]['Plot No.']
+            # Update session state with the clicked Plot No.
+            st.session_state.selected_unit = summary_table.iloc[selected_row_index]['Plot No.']
             st.rerun()
 
     # --- DETAIL INFO PANE ---
-    if selected_unit != "-- Select --":
-        unit_row = df[df['Plot No.'] == selected_unit].iloc[0]
-
-        st.divider()
-        if st.button("⬅️ Back to Portfolio List"):
-            st.rerun()
-
-        st.header(f"Viewing Unit: {selected_unit}")
+    if st.session_state.selected_unit != "-- Select --":
+        # Check if the selected unit exists in the current filtered view
+        unit_data = df[df['Plot No.'] == st.session_state.selected_unit]
         
-        col1, col2 = st.columns([2, 1])
+        if not unit_data.empty:
+            unit_row = unit_data.iloc[0]
 
-        with col1:
-            st.subheader("Detailed Info")
-            display_df = unit_row.to_frame()
-            display_df.columns = ["Value"]
-            st.table(display_df)
+            st.divider()
+            if st.button("⬅️ Back to Portfolio List"):
+                st.session_state.selected_unit = "-- Select --"
+                st.rerun()
 
-        with col2:
-            st.subheader("Payment Health")
+            st.header(f"Viewing Unit: {st.session_state.selected_unit}")
             
-            # --- EXTRACTING DATA ---
-            amt_this_month = unit_row.get('Amount to Collect for This Month', '0')
-            partial_deposited = unit_row.get('Partial Payment for Current Month', '0')
-            past_due = unit_row.get('Past Due Amount', '0')
-            total_collect = unit_row.get('Total Amount to Collect', '0')
-            total_paid = unit_row.get('Total Paid', '0')
-            bill_month = unit_row.get('Current Billing Month', 'N/A')
-            overdue_status = unit_row.get('Months Overdue', '0 month due')
-            current_status = str(unit_row.get('Status', 'Pending')).strip()
+            col1, col2 = st.columns([2, 1])
 
-            # --- DISPLAY METRICS WITH LAKHS ---
-            st.metric(label="Total Amount for This Month", value=f"{amt_this_month} Lakhs")
-            
-            st.metric(label="Partial Amount Deposited", value=f"{partial_deposited} Lakhs")
-            
-            st.metric(label="Total Paid", value=f"{total_paid} Lakhs")
-            
-            st.metric(label="Current Billing Month", value=bill_month)
-            
-            st.metric(
-                label="Total Amount to Collect", 
-                value=f"{total_collect} Lakhs", 
-                help="Includes Current Month + Past Due Amount"
-            )
-            st.caption(f"({amt_this_month} Current + {past_due} Past Due)")
+            with col1:
+                st.subheader("Detailed Info")
+                display_df = unit_row.to_frame()
+                display_df.columns = ["Value"]
+                st.table(display_df)
 
-            st.write("---")
-            
-            # --- STATUS LOGIC ---
-            if current_status.lower() == "complete":
-                st.success(f"🟢 Status: {current_status}")
-            
-            elif current_status.lower() == "partial":
-                st.warning(f"🟡 Status: {current_status}")
-                st.info(f"💰 {partial_deposited} Lakhs deposited out of {amt_this_month} Lakhs due this month.")
+            with col2:
+                st.subheader("Payment Health")
+                
+                # --- EXTRACTING DATA ---
+                amt_this_month = unit_row.get('Amount to Collect for This Month', '0')
+                partial_deposited = unit_row.get('Partial Payment for Current Month', '0')
+                past_due = unit_row.get('Past Due Amount', '0')
+                total_collect = unit_row.get('Total Amount to Collect', '0')
+                total_paid = unit_row.get('Total Paid', '0')
+                bill_month = unit_row.get('Current Billing Month', 'N/A')
+                overdue_status = unit_row.get('Months Overdue', '0 month due')
+                current_status = str(unit_row.get('Status', 'Pending')).strip()
 
-            elif current_status.lower() == "outstanding":
-                st.error(f"🔴 Status: {current_status}")
-                st.warning(f"🚨 {overdue_status}")
-            
-            else:
-                st.info(f"⚪ Status: {current_status}")
+                # --- DISPLAY METRICS ---
+                st.metric(label="Total Amount for This Month", value=f"{amt_this_month} Lakhs")
+                st.metric(label="Partial Amount Deposited", value=f"{partial_deposited} Lakhs")
+                st.metric(label="Total Paid", value=f"{total_paid} Lakhs")
+                st.metric(label="Current Billing Month", value=bill_month)
+                st.metric(
+                    label="Total Amount to Collect", 
+                    value=f"{total_collect} Lakhs", 
+                    help="Includes Current Month + Past Due Amount"
+                )
+                st.caption(f"({amt_this_month} Current + {past_due} Past Due)")
 
-            st.write("---")
-            st.caption("Last payment recorded on:")
-            st.write(unit_row.get('Last Payment Date', 'N/A'))
+                st.write("---")
+                
+                # --- STATUS LOGIC ---
+                low_status = current_status.lower()
+                if low_status == "complete":
+                    st.success(f"🟢 Status: {current_status}")
+                elif low_status == "partial":
+                    st.warning(f"🟡 Status: {current_status}")
+                    st.info(f"💰 {partial_deposited} Lakhs deposited.")
+                elif low_status == "outstanding":
+                    st.error(f"🔴 Status: {current_status}")
+                    st.warning(f"🚨 {overdue_status}")
+                else:
+                    st.info(f"⚪ Status: {current_status}")
+
+                st.write("---")
+                st.caption("Last payment recorded on:")
+                st.write(unit_row.get('Last Payment Date', 'N/A'))
 
 except Exception as e:
     st.error("Data Sync Error")
