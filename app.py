@@ -55,7 +55,7 @@ try:
         filtered_df = df[df['Sales Person'] == selected_sales]
 
     # --- QUICK FILTERS ---
-    st.write("### 🔍 Quick Filters")
+    st.write("### Quick Filters")
     c1, c2, c3 = st.columns(3)
     
     if c1.button("📑 Show All Units", type="secondary" if st.session_state.due_filter != "All" else "primary"):
