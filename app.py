@@ -47,7 +47,7 @@ def get_live_data():
 
 try:
     df = get_live_data()
-    st.title("🏙️ Fortune Commercial City Payment Tracker")
+    st.title("Fortune Commercial City Payment Tracker")
     st.divider()
 
     # --- ROW 1: PRIMARY FILTERS ---
@@ -74,7 +74,7 @@ try:
             st.rerun()
 
     # --- ROW 2: BUTTON LAYOUT ---
-    st.markdown("### 🔍 Quick Filters")
+    st.markdown("### Quick Filters")
     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
     
     with c1:
