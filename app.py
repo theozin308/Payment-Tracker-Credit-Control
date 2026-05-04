@@ -62,12 +62,12 @@ try:
         st.session_state.due_filter = "All"
         st.rerun()
     
-    if c2.button("🗓️ Current Month Due", type="primary" if st.session_state.due_filter == "Current" else "secondary"):
-        st.session_state.due_filter = "Current"
-        st.rerun()
-        
-    if c3.button("🚨 1+ Month Overdue", type="primary" if st.session_state.due_filter == "Overdue" else "secondary"):
+    if c2.button("🚨 1+ Month Overdue", type="primary" if st.session_state.due_filter == "Overdue" else "secondary"):
         st.session_state.due_filter = "Overdue"
+        st.rerun()
+
+     if c3.button("🗓️ Current Month Due", type="primary" if st.session_state.due_filter == "Current" else "secondary"):
+        st.session_state.due_filter = "Current"
         st.rerun()
 
     # --- DYNAMIC COLUMN LOGIC ---
