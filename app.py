@@ -10,6 +10,12 @@ st.markdown("""
     [data-testid="stMain"] [data-testid="stDataFrameDataLayer"] > div:first-child {
         display: none !important;
     }
+    .stMetric {
+        background-color: #f8f9fb;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
     .stButton > button {
         width: 100%;
         border-radius: 8px;
@@ -37,9 +43,15 @@ def get_live_data():
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
     
-    # --- SORTING LOGIC: SORT BY PLOT NO. GLOBALLY ---
+    # Sorting Logic: Global sort by Plot No.
     df = df.sort_values(by='Plot No.')
     
+    # Helper: Convert currency strings to numeric for health calculations
+    cols_to_fix = ['Amount to Collect for This Month', 'Past Due Amount', 'Total Amount to Collect']
+    for col in cols_to_fix:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
+
     # Helper: Convert 'Months Overdue' to numeric for filtering
     df['overdue_val'] = pd.to_numeric(df['Months Overdue'].str.extract('(\d+)')[0], errors='coerce').fillna(0)
     
@@ -62,7 +74,6 @@ try:
         filtered_df = df[df['Sales Person'] == selected_sales]
 
     with col_b:
-        # Plot No list is already sorted from get_live_data
         unit_list = filtered_df['Plot No.'].unique()
         curr_idx = 0
         if st.session_state.selected_unit in unit_list:
@@ -78,18 +89,16 @@ try:
     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
     
     with c1:
-        if st.button("📑 All Units", type="primary" if st.session_state.due_filter == "All" else "secondary"):
-            st.session_state.due_filter = "All"
-            st.rerun()
-    
-    with c2:
         if st.button("🚨 1+ Month Overdue", type="primary" if st.session_state.due_filter == "Overdue" else "secondary"):
             st.session_state.due_filter = "Overdue"
             st.rerun()
-        
-    with c3:
+    with c2:
         if st.button("🗓️ Current Month Due", type="primary" if st.session_state.due_filter == "Current" else "secondary"):
             st.session_state.due_filter = "Current"
+            st.rerun()
+    with c3:
+        if st.button("📑 All Units", type="primary" if st.session_state.due_filter == "All" else "secondary"):
+            st.session_state.due_filter = "All"
             st.rerun()
 
     # --- FILTER LOGIC ---
@@ -106,11 +115,24 @@ try:
 
     # --- DASHBOARD VIEW ---
     if st.session_state.selected_unit == "-- Select --":
-        st.subheader(f"Dashboard: {st.session_state.due_filter} ({len(filtered_df)} Units)")
+        
+        # --- PAYMENT HEALTH SECTION ---
+        st.subheader("📊 Payment Health")
+        h1, h2, h3 = st.columns(3)
+        
+        total_past_due = filtered_df['Past Due Amount'].sum()
+        total_this_month = filtered_df['Amount to Collect for This Month'].sum()
+        grand_total = filtered_df['Total Amount to Collect'].sum()
+
+        h1.metric("Past Due (Overdue)", f"{total_past_due:,.0f} MMK", delta=f"{len(filtered_df[filtered_df['overdue_val'] > 0])} Units", delta_color="inverse")
+        h2.metric("Due This Month", f"{total_this_month:,.0f} MMK")
+        h3.metric("Total Outstanding", f"{grand_total:,.0f} MMK")
+        
+        st.divider()
+        st.subheader(f"Unit List: {st.session_state.due_filter} ({len(filtered_df)} Units)")
         
         summary_cols = [c for c in display_cols if c in filtered_df.columns]
         
-        # The table remains sorted by Plot No.
         event = st.dataframe(
             filtered_df[summary_cols], 
             use_container_width=True, 
@@ -133,7 +155,9 @@ try:
             st.rerun()
             
         st.header(f"Details: {st.session_state.selected_unit}")
-        st.table(unit_data.to_frame(name="Information"))
+        # Exclude internal helper columns from the detailed table view
+        display_unit_data = unit_data.drop(['overdue_val'])
+        st.table(display_unit_data.to_frame(name="Information"))
 
 except Exception as e:
     st.error(f"Application Error: {e}")
