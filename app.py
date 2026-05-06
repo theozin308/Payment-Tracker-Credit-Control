@@ -11,10 +11,9 @@ st.markdown("""
         display: none !important;
     }
     .stMetric {
-        background-color: #f8f9fb;
+        background-color: #f0f2f6;
         padding: 15px;
         border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .stButton > button {
         width: 100%;
@@ -43,16 +42,16 @@ def get_live_data():
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
     
-    # Sorting Logic: Global sort by Plot No.
+    # Global Sort by Plot No.
     df = df.sort_values(by='Plot No.')
     
-    # Helper: Convert currency strings to numeric for health calculations
+    # Numeric Conversion for Health Metrics
     cols_to_fix = ['Amount to Collect for This Month', 'Past Due Amount', 'Total Amount to Collect']
     for col in cols_to_fix:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
 
-    # Helper: Convert 'Months Overdue' to numeric for filtering
+    # Convert 'Months Overdue' to numeric
     df['overdue_val'] = pd.to_numeric(df['Months Overdue'].str.extract('(\d+)')[0], errors='coerce').fillna(0)
     
     return df
@@ -84,57 +83,37 @@ try:
             st.session_state.selected_unit = selected_unit_box
             st.rerun()
 
-    # --- ROW 2: BUTTON LAYOUT ---
-    st.markdown("### Quick Filters")
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
-    
-    with c1:
-        if st.button("🚨 1+ Month Overdue", type="primary" if st.session_state.due_filter == "Overdue" else "secondary"):
-            st.session_state.due_filter = "Overdue"
-            st.rerun()
-    with c2:
-        if st.button("🗓️ Current Month Due", type="primary" if st.session_state.due_filter == "Current" else "secondary"):
-            st.session_state.due_filter = "Current"
-            st.rerun()
-    with c3:
-        if st.button("📑 All Units", type="primary" if st.session_state.due_filter == "All" else "secondary"):
-            st.session_state.due_filter = "All"
-            st.rerun()
-
-    # --- FILTER LOGIC ---
-    base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
-    
-    if st.session_state.due_filter == "Current":
-        filtered_df = filtered_df[filtered_df['overdue_val'] == 0]
-        display_cols = base_cols
-    elif st.session_state.due_filter == "Overdue":
-        filtered_df = filtered_df[filtered_df['overdue_val'] >= 1]
-        display_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Past Due Amount', 'Total Amount to Collect', 'Status', 'Months Overdue']
-    else:
-        display_cols = base_cols
-
     # --- DASHBOARD VIEW ---
     if st.session_state.selected_unit == "-- Select --":
-        
-        # --- PAYMENT HEALTH SECTION ---
-        st.subheader("📊 Payment Health")
-        h1, h2, h3 = st.columns(3)
-        
-        total_past_due = filtered_df['Past Due Amount'].sum()
-        total_this_month = filtered_df['Amount to Collect for This Month'].sum()
-        grand_total = filtered_df['Total Amount to Collect'].sum()
+        # QUICK FILTERS
+        st.markdown("### Quick Filters")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            if st.button("🚨 1+ Month Overdue", type="primary" if st.session_state.due_filter == "Overdue" else "secondary"):
+                st.session_state.due_filter = "Overdue"
+                st.rerun()
+        with c2:
+            if st.button("🗓️ Current Month Due", type="primary" if st.session_state.due_filter == "Current" else "secondary"):
+                st.session_state.due_filter = "Current"
+                st.rerun()
+        with c3:
+            if st.button("📑 All Units", type="primary" if st.session_state.due_filter == "All" else "secondary"):
+                st.session_state.due_filter = "All"
+                st.rerun()
 
-        h1.metric("Past Due (Overdue)", f"{total_past_due:,.0f} MMK", delta=f"{len(filtered_df[filtered_df['overdue_val'] > 0])} Units", delta_color="inverse")
-        h2.metric("Due This Month", f"{total_this_month:,.0f} MMK")
-        h3.metric("Total Outstanding", f"{grand_total:,.0f} MMK")
-        
-        st.divider()
-        st.subheader(f"Unit List: {st.session_state.due_filter} ({len(filtered_df)} Units)")
-        
-        summary_cols = [c for c in display_cols if c in filtered_df.columns]
+        # Filter Logic
+        base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
+        if st.session_state.due_filter == "Current":
+            display_df = filtered_df[filtered_df['overdue_val'] == 0]
+        elif st.session_state.due_filter == "Overdue":
+            display_df = filtered_df[filtered_df['overdue_val'] >= 1]
+        else:
+            display_df = filtered_df
+
+        st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
         
         event = st.dataframe(
-            filtered_df[summary_cols], 
+            display_df[base_cols], 
             use_container_width=True, 
             hide_index=True,
             on_select="rerun",  
@@ -143,21 +122,37 @@ try:
 
         if len(event.selection.rows) > 0:
             row_idx = event.selection.rows[0]
-            st.session_state.selected_unit = filtered_df.iloc[row_idx]['Plot No.']
+            st.session_state.selected_unit = display_df.iloc[row_idx]['Plot No.']
             st.rerun()
 
+    # --- DETAIL PANE (With Payment Health) ---
     else:
-        # DETAIL VIEW
         unit_data = df[df['Plot No.'] == st.session_state.selected_unit].iloc[0]
-        st.divider()
+        
         if st.button("⬅️ Back to Table List"):
             st.session_state.selected_unit = "-- Select --"
             st.rerun()
-            
+
         st.header(f"Details: {st.session_state.selected_unit}")
-        # Exclude internal helper columns from the detailed table view
-        display_unit_data = unit_data.drop(['overdue_val'])
-        st.table(display_unit_data.to_frame(name="Information"))
+        
+        # --- PAYMENT HEALTH (Unit Specific) ---
+        st.markdown("### 📊 Payment Health")
+        h1, h2, h3 = st.columns(3)
+        
+        past_due = unit_data['Past Due Amount']
+        this_month = unit_data['Amount to Collect for This Month']
+        total_due = unit_data['Total Amount to Collect']
+
+        h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']}", delta_color="inverse")
+        h2.metric("Due This Month", f"{this_month:,.0f} MMK")
+        h3.metric("Total to Collect", f"{total_due:,.0f} MMK")
+        
+        st.divider()
+        
+        # Display all info in a table format
+        # Drop the helper columns for a cleaner look
+        clean_display = unit_data.drop(['overdue_val'])
+        st.table(clean_display.to_frame(name="Information"))
 
 except Exception as e:
     st.error(f"Application Error: {e}")
