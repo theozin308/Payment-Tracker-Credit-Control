@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
-import streamlit_authenticator as stauth  # <-- 1. Import the authenticator
+import streamlit_authenticator as stauth
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
 
-# --- 2. SETUP AUTHENTICATION LAYER ---
+# --- 1. SETUP AUTHENTICATION LAYER ---
 # Load credentials safely from the Secrets Management panel
 authenticator = stauth.Authenticate(
     st.secrets['credentials'].to_dict(),
@@ -15,23 +15,22 @@ authenticator = stauth.Authenticate(
 )
 
 # Render the login form widget
-# This creates a clean input box for Username and Password
 name, authentication_status, username = authenticator.login('main')
 
-# --- 3. HANDLE LOGIN STATUS ---
+# --- 2. HANDLE LOGIN STATUS ---
 if authentication_status == False:
     st.error('Username/password is incorrect')
 
 elif authentication_status == None:
     st.warning('Please enter your username and password')
 
-elif authentication_status: # If login is successful, show the app!
+elif authentication_status: # If login is successful, execute the application code
     
     # Add a sidebar logout button for convenience
     authenticator.logout('Logout', 'sidebar')
     st.sidebar.markdown(f"### Welcome, **{name}** 👋")
     
-    # --- YOUR ORIGINAL CSS STYLING ---
+    # --- CSS STYLING ---
     st.markdown("""
         <style>
         [data-testid="stMain"] [data-testid="stDataFrameDataLayer"] > div:first-child {
@@ -61,23 +60,31 @@ elif authentication_status: # If login is successful, show the app!
         st.session_state.due_filter = "All" 
 
     # --- OPTIMIZED CACHING LAYER ---
+    # Separated network data download from dataframe operations to maximize performance speed
     @st.cache_data(ttl=300) 
     def download_raw_sheet():
         return pd.read_csv(SHEET_URL, dtype=str)
 
     def get_live_data():
-        df = download_raw_sheet().copy()
+        df = download_raw_sheet().copy()  # .copy() prevents unexpected cache mutation errors
         df.columns = df.columns.str.strip() 
+        
+        # Cleaning: Remove empty/None rows
         df = df[df['Plot No.'].notna()]
         df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
+        
+        # Global Sort by Plot No.
         df = df.sort_values(by='Plot No.')
         
+        # Numeric Conversion for Health Metrics
         cols_to_fix = ['Amount to Collect for This Month', 'Past Due Amount', 'Total Amount to Collect']
         for col in cols_to_fix:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
 
+        # Convert 'Months Overdue' to numeric (Fixed Python 3.14 escape sequence warning using raw string r'')
         df['overdue_val'] = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
+        
         return df
 
     try:
@@ -109,6 +116,7 @@ elif authentication_status: # If login is successful, show the app!
 
         # --- DASHBOARD VIEW ---
         if st.session_state.selected_unit == "-- Select --":
+            # QUICK FILTERS
             st.markdown("### Quick Filters")
             c1, c2, c3 = st.columns(3)
             with c1:
@@ -124,6 +132,7 @@ elif authentication_status: # If login is successful, show the app!
                     st.session_state.due_filter = "All"
                     st.rerun()
 
+            # Filter Logic
             base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
             if st.session_state.due_filter == "Current":
                 display_df = filtered_df[filtered_df['overdue_val'] == 0]
@@ -147,7 +156,7 @@ elif authentication_status: # If login is successful, show the app!
                 st.session_state.selected_unit = display_df.iloc[row_idx]['Plot No.']
                 st.rerun()
 
-        # --- DETAIL PANE ---
+        # --- DETAIL PANE (With Payment Health & Last Payment) ---
         else:
             unit_data = df[df['Plot No.'] == st.session_state.selected_unit].iloc[0]
             
@@ -157,6 +166,7 @@ elif authentication_status: # If login is successful, show the app!
 
             st.header(f"Details: {st.session_state.selected_unit}")
             
+            # --- PAYMENT HEALTH (Unit Specific) ---
             st.markdown("### 📊 Payment Health")
             h1, h2, h3, h4 = st.columns(4)
             
@@ -172,6 +182,7 @@ elif authentication_status: # If login is successful, show the app!
             
             st.divider()
             
+            # Full Info Table
             clean_display = unit_data.drop(['overdue_val'])
             st.table(clean_display.to_frame(name="Information"))
 
