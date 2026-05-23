@@ -1,3 +1,4 @@
 streamlit
 pandas
+pyjwt>=2.4.0
 streamlit-authenticator==0.3.4
