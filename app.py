@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import streamlit.components.v1 as components  # Required for injecting JS
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
@@ -19,7 +18,7 @@ st.markdown("""
     .stButton > button {
         width: 100%;
         border-radius: 8px;
-        move-height: 3.5em;
+        height: 3.5em;
         font-weight: bold;
     }
     </style>
@@ -61,62 +60,6 @@ try:
     df = get_live_data()
     st.title("Fortune Commercial City Payment Tracker")
     st.divider()
-
-    # --- ADD TO HOME SCREEN BUTTON COMPONENTS ---
-    # This injects a hidden handler that pops up an install button only if the browser supports it.
-    components.html("""
-    <div id="install-container" style="display:none; padding: 10px 0px;">
-        <button id="btnInstall" style="
-            width: 100%; 
-            background-color: #FF4B4B; 
-            color: white; 
-            border: none; 
-            padding: 12px; 
-            font-size: 16px; 
-            font-weight: bold; 
-            border-radius: 8px; 
-            cursor: pointer;
-            box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-            📲 Install FCC Tracker on Home Screen
-        </button>
-    </div>
-
-    <script>
-        let deferredPrompt;
-        const btnInstall = document.getElementById('btnInstall');
-        const container = document.getElementById('install-container');
-
-        // Listen for the browser's install prompt offer
-        window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevent Chrome 67 and earlier from automatically showing the prompt
-            e.preventDefault();
-            // Stash the event so it can be triggered later.
-            deferredPrompt = e;
-            // Update UI notify the user they can install the PWA
-            container.style.display = 'block';
-        });
-
-        btnInstall.addEventListener('click', async () => {
-            if (!deferredPrompt) return;
-            // Show the install prompt
-            deferredPrompt.prompt();
-            // Wait for the user to respond to the prompt
-            const { outcome } = await deferredPrompt.userChoice;
-            console.log(`User response to the install prompt: ${outcome}`);
-            // We've used the prompt, and can't use it again
-            deferredPrompt = null;
-            // Hide our custom button
-            container.style.display = 'none';
-        });
-
-        window.addEventListener('appinstalled', () => {
-            // Clear the deferredPrompt so it can be garbage collected
-            deferredPrompt = null;
-            container.style.display = 'none';
-            console.log('PWA was installed');
-        });
-    </script>
-    """, height=70)
 
     # --- ROW 1: PRIMARY FILTERS ---
     col_a, col_b = st.columns(2)
@@ -194,6 +137,7 @@ try:
         
         # --- PAYMENT HEALTH (Unit Specific) ---
         st.markdown("### 📊 Payment Health")
+        # Added a 4th column for the Last Payment Date
         h1, h2, h3, h4 = st.columns(4)
         
         past_due = unit_data['Past Due Amount']
@@ -204,7 +148,7 @@ try:
         h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']}", delta_color="inverse")
         h2.metric("Due This Month", f"{this_month:,.0f} MMK")
         h3.metric("Total to Collect", f"{total_due:,.0f} MMK")
-        h4.metric("Last Payment Date", str(last_payment)) 
+        h4.metric("Last Payment Date", str(last_payment)) # Highlighting the date here
         
         st.divider()
         
