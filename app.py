@@ -77,7 +77,7 @@ elif authentication_status: # If login is successful, show the app!
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
 
-        df['overdue_val'] = pd.to_numeric(df['Months Overdue'].str.extract('(\d+)')[0], errors='coerce').fillna(0)
+        df['overdue_val'] = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
         return df
 
     try:
