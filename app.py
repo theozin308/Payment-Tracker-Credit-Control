@@ -72,12 +72,13 @@ try:
         sales_people = sorted(df['Sales Person'].dropna().unique())
         selected_sales = st.selectbox("👤 Filter by Sales Person", options=["-- All Sales --"] + list(sales_people))
 
-    filtered_df = df.copy()
+    # Apply Sales Person Filter to a Master Base DataFrame
+    base_filtered_df = df.copy()
     if selected_sales != "-- All Sales --":
-        filtered_df = df[df['Sales Person'] == selected_sales]
+        base_filtered_df = df[df['Sales Person'] == selected_sales]
 
     with col_b:
-        unit_list = filtered_df['Plot No.'].unique()
+        unit_list = base_filtered_df['Plot No.'].unique()
         curr_idx = 0
         if st.session_state.selected_unit in unit_list:
             curr_idx = list(unit_list).index(st.session_state.selected_unit) + 1
@@ -89,32 +90,45 @@ try:
 
     # --- DASHBOARD VIEW ---
     if st.session_state.selected_unit == "-- Select --":
-        # QUICK FILTERS
+        # QUICK FILTERS (Now 4 Columns)
         st.markdown("### Quick Filters")
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
+        
         with c1:
-            if st.button("🚨 1+ Month Overdue", type="primary" if st.session_state.due_filter == "Overdue" else "secondary"):
-                st.session_state.due_filter = "Overdue"
+            if st.button("📑 All Units", type="primary" if st.session_state.due_filter == "All" else "secondary"):
+                st.session_state.due_filter = "All"
                 st.rerun()
         with c2:
             if st.button("🗓️ Current Month Due", type="primary" if st.session_state.due_filter == "Current" else "secondary"):
                 st.session_state.due_filter = "Current"
                 st.rerun()
         with c3:
-            if st.button("📑 All Units", type="primary" if st.session_state.due_filter == "All" else "secondary"):
-                st.session_state.due_filter = "All"
+            if st.button("🚨 1+ Month Overdue", type="primary" if st.session_state.due_filter == "Overdue" else "secondary"):
+                st.session_state.due_filter = "Overdue"
+                st.rerun()
+        with c4:
+            if st.button("✅ Completed / Advance", type="primary" if st.session_state.due_filter == "Completed" else "secondary"):
+                st.session_state.due_filter = "Completed"
                 st.rerun()
 
-        # Filter Logic
-        base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
+        # Filter Logic based strictly on base_filtered_df (Sales Person filter respected)
         if st.session_state.due_filter == "Current":
-            display_df = filtered_df[filtered_df['overdue_val'] == 0]
+            # Current due units typically have 0 months overdue but have pending amounts, and exclude completed statuses
+            display_df = base_filtered_df[
+                (base_filtered_df['overdue_val'] == 0) & 
+                (~base_filtered_df['Status'].str.lower().str.contains('complete|advance|done', na=False))
+            ]
         elif st.session_state.due_filter == "Overdue":
-            display_df = filtered_df[filtered_df['overdue_val'] >= 1]
+            display_df = base_filtered_df[base_filtered_df['overdue_val'] >= 1]
+        elif st.session_state.due_filter == "Completed":
+            # Matches strings containing 'complete' or 'advance' dynamically
+            display_df = base_filtered_df[base_filtered_df['Status'].str.lower().str.contains('complete|advance', na=False)]
         else:
-            display_df = filtered_df
+            display_df = base_filtered_df
 
         st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
+        
+        base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
         
         event = st.dataframe(
             display_df[base_cols], 
