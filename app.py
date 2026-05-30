@@ -55,8 +55,13 @@ def get_live_data():
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
 
-    # Convert 'Months Overdue' to numeric
-    df['overdue_val'] = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
+    # --- FIXED OVERDUE EXTRACTION ---
+    # First, parse out the raw number digits
+    raw_digits = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
+    
+    # If the text explicitly contains "advance", treat it as a negative value so it fails the '>= 1' overdue filter
+    is_advance = df['Months Overdue'].str.lower().str.contains('advance|paid', na=False)
+    df['overdue_val'] = raw_digits.mask(is_advance, -1 * raw_digits)
     
     return df
 
@@ -90,7 +95,7 @@ try:
 
     # --- DASHBOARD VIEW ---
     if st.session_state.selected_unit == "-- Select --":
-        # QUICK FILTERS (Now 4 Columns)
+        # QUICK FILTERS
         st.markdown("### Quick Filters")
         c1, c2, c3, c4 = st.columns(4)
         
@@ -111,18 +116,25 @@ try:
                 st.session_state.due_filter = "Completed"
                 st.rerun()
 
-        # Filter Logic based strictly on base_filtered_df (Sales Person filter respected)
+        # --- REVISED FILTER LOGIC ---
+        # A row is a structural completed/advance type if its status says so OR if the text explicitly states "advance"
+        is_completed_or_advance = (
+            base_filtered_df['Status'].str.lower().str.contains('complete|advance|done', na=False) |
+            base_filtered_df['Months Overdue'].str.lower().str.contains('advance', na=False)
+        )
+
         if st.session_state.due_filter == "Current":
-            # Current due units typically have 0 months overdue but have pending amounts, and exclude completed statuses
-            display_df = base_filtered_df[
-                (base_filtered_df['overdue_val'] == 0) & 
-                (~base_filtered_df['Status'].str.lower().str.contains('complete|advance|done', na=False))
-            ]
+            # Current due units: 0 months overdue and NOT complete/advance
+            display_df = base_filtered_df[(base_filtered_df['overdue_val'] == 0) & (~is_completed_or_advance)]
+            
         elif st.session_state.due_filter == "Overdue":
-            display_df = base_filtered_df[base_filtered_df['overdue_val'] >= 1]
+            # Genuine overdue units: greater than or equal to 1 month, and NOT complete/advance text
+            display_df = base_filtered_df[(base_filtered_df['overdue_val'] >= 1) & (~is_completed_or_advance)]
+            
         elif st.session_state.due_filter == "Completed":
-            # Matches strings containing 'complete' or 'advance' dynamically
-            display_df = base_filtered_df[base_filtered_df['Status'].str.lower().str.contains('complete|advance', na=False)]
+            # Displays anything tagged as complete or advance
+            display_df = base_filtered_df[is_completed_or_advance]
+            
         else:
             display_df = base_filtered_df
 
