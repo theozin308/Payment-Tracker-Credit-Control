@@ -75,13 +75,6 @@ def get_live_data():
 
 try:
     df = get_live_data()
-    
-    # --- GET URL PARAMS FOR ROUTING ---
-    # This reads when a row hyperlink is pressed
-    url_params = st.query_params
-    if "view_unit" in url_params:
-        st.session_state.selected_unit = url_params["view_unit"]
-
     st.title("Fortune Commercial City Payment Tracker")
     st.divider()
 
@@ -106,11 +99,6 @@ try:
         selected_unit_box = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list), index=curr_idx)
         if selected_unit_box != st.session_state.selected_unit:
             st.session_state.selected_unit = selected_unit_box
-            # Sync URL parameter on dropdown change
-            if selected_unit_box == "-- Select --":
-                st.query_params.clear()
-            else:
-                st.query_params["view_unit"] = selected_unit_box
             st.rerun()
 
     # --- DASHBOARD VIEW ---
@@ -153,11 +141,12 @@ try:
 
         st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
         
-        # 💡 SOLUTION: Map URL query links to each row to remove checkboxes entirely
-        rendered_df = display_df.copy()
-        rendered_df['Action'] = rendered_df['Plot No.'].apply(lambda x: f"?view_unit={x}")
+        # Create data layout configuration copy
+        rendered_df = display_df.copy().reset_index(drop=True)
+        rendered_df['Select Unit'] = False # Interactive row cell toggle action
         
         base_cols = [
+            'Select Unit',
             'Plot No.', 
             'Sales Person', 
             'Customer Name', 
@@ -165,22 +154,27 @@ try:
             'Total Paid',
             'Partial (or) Full Payment for Current Month',
             'Status', 
-            'Months Overdue',
-            'Action'
+            'Months Overdue'
         ]
         
-        # Safe table layout view (Notice: on_select is removed to completely hide checkboxes)
-        st.dataframe(
+        # 💡 SOLUTION: Using st.data_editor to catch inline selections instantly on the same tab page
+        edited_df = st.data_editor(
             rendered_df[base_cols], 
             use_container_width=True, 
             hide_index=True,
             column_config={
+                "Select Unit": st.column_config.CheckboxColumn("👀 View", help="Check box to view this unit's details instantly", default=False),
                 "Total Amount to Collect This Month": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
                 "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
-                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d"),
-                "Action": st.column_config.LinkColumn("View Details", display_text="Go to Detail ➡️")
+                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d")
             }
         )
+
+        # Check if any row's checkbox cell got triggered
+        for idx, row in edited_df.iterrows():
+            if row['Select Unit'] is True:
+                st.session_state.selected_unit = rendered_df.iloc[idx]['Plot No.']
+                st.rerun()
 
     # --- DETAIL PANE ---
     else:
@@ -188,7 +182,6 @@ try:
         
         if st.button("⬅️ Back to Table List"):
             st.session_state.selected_unit = "-- Select --"
-            st.query_params.clear() # Clear out URL trace
             st.rerun()
 
         st.header(f"Details: {st.session_state.selected_unit}")
@@ -212,7 +205,6 @@ try:
         # Full Info Table
         clean_display = unit_data.drop(['overdue_val'])
         
-        # Format metrics lists safely
         if 'Past Due Amount' in clean_display:
             clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
         if 'Amount to Collect for This Month' in clean_display:
@@ -220,16 +212,4 @@ try:
         if 'Total Amount to Collect This Month' in clean_display:
             clean_display['Total Amount to Collect This Month'] = f"{total_due:,.0f} MMK"
             
-        if 'Total Paid' in clean_display:
-            clean_display['Total Paid'] = f"{unit_data['Total Paid']:,.0f} MMK"
-        if 'Plot Price' in clean_display:
-            clean_display['Plot Price'] = f"{unit_data['Plot Price']:,.0f} MMK"
-        if 'Remaining Balance' in clean_display:
-            clean_display['Remaining Balance'] = f"{unit_data['Remaining Balance']:,.0f} MMK"
-        if 'Partial (or) Full Payment for Current Month' in clean_display:
-            clean_display['Partial (or) Full Payment for Current Month'] = f"{unit_data['Partial (or) Full Payment for Current Month']:,.0f} MMK"
-        
-        st.table(clean_display.to_frame(name="Information"))
-
-except Exception as e:
-    st.error(f"Application Error: {e}")
+        if '
