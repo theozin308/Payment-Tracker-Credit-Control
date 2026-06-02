@@ -66,7 +66,7 @@ def get_live_data():
             # Conversion: Shorthand lakhs to full numerical value
             df[col] = shorthand_num * 100000
 
-    # --- FIXED OVERDUE EXTRACTION ---
+    # --- OVERDUE EXTRACTION ---
     raw_digits = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
     is_advance = df['Months Overdue'].str.lower().str.contains('advance|paid', na=False)
     df['overdue_val'] = raw_digits.mask(is_advance, -1 * raw_digits)
@@ -75,6 +75,13 @@ def get_live_data():
 
 try:
     df = get_live_data()
+    
+    # --- GET URL PARAMS FOR ROUTING ---
+    # This reads when a row hyperlink is pressed
+    url_params = st.query_params
+    if "view_unit" in url_params:
+        st.session_state.selected_unit = url_params["view_unit"]
+
     st.title("Fortune Commercial City Payment Tracker")
     st.divider()
 
@@ -99,6 +106,11 @@ try:
         selected_unit_box = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list), index=curr_idx)
         if selected_unit_box != st.session_state.selected_unit:
             st.session_state.selected_unit = selected_unit_box
+            # Sync URL parameter on dropdown change
+            if selected_unit_box == "-- Select --":
+                st.query_params.clear()
+            else:
+                st.query_params["view_unit"] = selected_unit_box
             st.rerun()
 
     # --- DASHBOARD VIEW ---
@@ -141,6 +153,10 @@ try:
 
         st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
         
+        # 💡 SOLUTION: Map URL query links to each row to remove checkboxes entirely
+        rendered_df = display_df.copy()
+        rendered_df['Action'] = rendered_df['Plot No.'].apply(lambda x: f"?view_unit={x}")
+        
         base_cols = [
             'Plot No.', 
             'Sales Person', 
@@ -149,27 +165,22 @@ try:
             'Total Paid',
             'Partial (or) Full Payment for Current Month',
             'Status', 
-            'Months Overdue'
+            'Months Overdue',
+            'Action'
         ]
         
-        # Main dashboard table view
-        event = st.dataframe(
-            display_df[base_cols], 
+        # Safe table layout view (Notice: on_select is removed to completely hide checkboxes)
+        st.dataframe(
+            rendered_df[base_cols], 
             use_container_width=True, 
             hide_index=True,
-            on_select="rerun",  
-            selection_mode="single-row",
             column_config={
                 "Total Amount to Collect This Month": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
                 "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
-                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d")
+                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d"),
+                "Action": st.column_config.LinkColumn("View Details", display_text="Go to Detail ➡️")
             }
         )
-
-        if len(event.selection.rows) > 0:
-            row_idx = event.selection.rows[0]
-            st.session_state.selected_unit = display_df.iloc[row_idx]['Plot No.']
-            st.rerun()
 
     # --- DETAIL PANE ---
     else:
@@ -177,6 +188,7 @@ try:
         
         if st.button("⬅️ Back to Table List"):
             st.session_state.selected_unit = "-- Select --"
+            st.query_params.clear() # Clear out URL trace
             st.rerun()
 
         st.header(f"Details: {st.session_state.selected_unit}")
@@ -200,7 +212,7 @@ try:
         # Full Info Table
         clean_display = unit_data.drop(['overdue_val'])
         
-        # Format metric parameters dynamically into text strings inside the info list layout
+        # Format metrics lists safely
         if 'Past Due Amount' in clean_display:
             clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
         if 'Amount to Collect for This Month' in clean_display:
