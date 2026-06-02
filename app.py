@@ -7,7 +7,8 @@ st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
 # --- CSS STYLING ---
 st.markdown("""
     <style>
-    [data-testid="stMain"] [data-testid="stDataFrameDataLayer"] > div:first-child {
+    /* 💡 PERFECT FIX: This completely targets and hides the checkbox column grid wrapper */
+    [data-testid="stDataFrameSelectColumn"] {
         display: none !important;
     }
     .stMetric {
@@ -21,7 +22,6 @@ st.markdown("""
         height: 3.5em;
         font-weight: bold;
     }
-    /* Clean adjustments for grid layout */
     div[data-testid="stDataFrame"] iframe {
         border-radius: 8px;
     }
@@ -145,7 +145,6 @@ try:
 
         st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
         
-        # Add the clear tracking instruction column at the end
         rendered_df = display_df.copy().reset_index(drop=True)
         rendered_df['Action'] = "Go to Detail ➡️"
         
@@ -161,12 +160,12 @@ try:
             'Action'
         ]
         
-        # 💡 FIX: on_select="rows" tracks the selection silently WITHOUT forcing checkboxes
+        # Using on_select="rerun" ensures compatibility with your Streamlit environment version
         event = st.dataframe(
             rendered_df[base_cols], 
             use_container_width=True, 
             hide_index=True,
-            on_select="rows",  
+            on_select="rerun",  
             column_config={
                 "Total Amount to Collect This Month": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
                 "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
@@ -175,7 +174,7 @@ try:
             }
         )
 
-        # Handle row selection smoothly in the same tab window
+        # Process choice from row selection list
         if len(event.selection.rows) > 0:
             row_idx = event.selection.rows[0]
             st.session_state.selected_unit = rendered_df.iloc[row_idx]['Plot No.']
@@ -214,19 +213,4 @@ try:
             clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
         if 'Amount to Collect for This Month' in clean_display:
             clean_display['Amount to Collect for This Month'] = f"{this_month:,.0f} MMK"
-        if 'Total Amount to Collect This Month' in clean_display:
-            clean_display['Total Amount to Collect This Month'] = f"{total_due:,.0f} MMK"
-            
-        if 'Total Paid' in clean_display:
-            clean_display['Total Paid'] = f"{unit_data['Total Paid']:,.0f} MMK"
-        if 'Plot Price' in clean_display:
-            clean_display['Plot Price'] = f"{unit_data['Plot Price']:,.0f} MMK"
-        if 'Remaining Balance' in clean_display:
-            clean_display['Remaining Balance'] = f"{unit_data['Remaining Balance']:,.0f} MMK"
-        if 'Partial (or) Full Payment for Current Month' in clean_display:
-            clean_display['Partial (or) Full Payment for Current Month'] = f"{unit_data['Partial (or) Full Payment for Current Month']:,.0f} MMK"
-        
-        st.table(clean_display.to_frame(name="Information"))
-
-except Exception as e:
-    st.error(f"Application Error: {e}")
+        if 'Total Amount to Collect
