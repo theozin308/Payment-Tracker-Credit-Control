@@ -34,7 +34,6 @@ if "due_filter" not in st.session_state:
     st.session_state.due_filter = "All" 
 
 # --- READ QUERY PARAMETERS FOR NEW TAB LINKS ---
-# If a user clicks a Plot No. hyperlink, it opens a new tab with ?unit=XYZ in the URL
 query_params = st.query_params
 if "unit" in query_params:
     st.session_state.selected_unit = query_params["unit"]
@@ -96,7 +95,6 @@ try:
     with col_b:
         unit_list = base_filtered_df['Plot No.'].unique()
         
-        # Keep dropdown select perfectly synced with current view pane
         curr_idx = 0
         if st.session_state.selected_unit in unit_list:
             curr_idx = list(unit_list).index(st.session_state.selected_unit) + 1
@@ -104,7 +102,6 @@ try:
         selected_unit_box = st.selectbox("🎯 Choose Unit to View Details Instantly", options=["-- Select --"] + list(unit_list), index=curr_idx)
         if selected_unit_box != st.session_state.selected_unit:
             st.session_state.selected_unit = selected_unit_box
-            # If changing via dropdown, clear out any old query string parameter safely
             if "unit" in st.query_params:
                 st.query_params.clear()
             st.rerun()
@@ -151,14 +148,8 @@ try:
         
         rendered_df = display_df.copy().reset_index(drop=True)
         
-        # 💡 SOLUTION: Convert Plot No. text column into an internal application hyperlink query string string
-        # This creates links like: http://localhost:8501/?unit=A-102
+        # Safe URL assignment to avoid multi-line string truncation bugs
         rendered_df['Plot Link'] = "/?unit=" + rendered_df['Plot No.'].astype(str)
         
-        base_cols = [
-            'Plot Link', # Use the Link column here instead of original static column
-            'Sales Person', 
-            'Customer Name', 
-            'Total Amount to Collect This Month', 
-            'Total Paid',
-            'Partial (or) Full Payment for Current
+        # Map dynamic long names into clean variables to shorten arrays safely
+        col_
