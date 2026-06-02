@@ -33,6 +33,12 @@ if "selected_unit" not in st.session_state:
 if "due_filter" not in st.session_state:
     st.session_state.due_filter = "All" 
 
+# --- READ QUERY PARAMETERS FOR NEW TAB LINKS ---
+# If a user clicks a Plot No. hyperlink, it opens a new tab with ?unit=XYZ in the URL
+query_params = st.query_params
+if "unit" in query_params:
+    st.session_state.selected_unit = query_params["unit"]
+
 # --- DATA CACHING & FETCHING ---
 @st.cache_data(ttl=300) 
 def download_raw_sheet():
@@ -98,6 +104,9 @@ try:
         selected_unit_box = st.selectbox("🎯 Choose Unit to View Details Instantly", options=["-- Select --"] + list(unit_list), index=curr_idx)
         if selected_unit_box != st.session_state.selected_unit:
             st.session_state.selected_unit = selected_unit_box
+            # If changing via dropdown, clear out any old query string parameter safely
+            if "unit" in st.query_params:
+                st.query_params.clear()
             st.rerun()
 
     # --- DASHBOARD VIEW LAYER ---
@@ -142,76 +151,14 @@ try:
         
         rendered_df = display_df.copy().reset_index(drop=True)
         
+        # 💡 SOLUTION: Convert Plot No. text column into an internal application hyperlink query string string
+        # This creates links like: http://localhost:8501/?unit=A-102
+        rendered_df['Plot Link'] = "/?unit=" + rendered_df['Plot No.'].astype(str)
+        
         base_cols = [
-            'Plot No.', 
+            'Plot Link', # Use the Link column here instead of original static column
             'Sales Person', 
             'Customer Name', 
             'Total Amount to Collect This Month', 
             'Total Paid',
-            'Partial (or) Full Payment for Current Month',
-            'Status', 
-            'Months Overdue'
-        ]
-        
-        # Displaying a clean standard DataFrame with 0 checkboxes
-        st.dataframe(
-            rendered_df[base_cols], 
-            use_container_width=True, 
-            hide_index=True,
-            column_config={
-                "Total Amount to Collect This Month": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
-                "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
-                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d")
-            }
-        )
-        st.info("💡 To view details for any unit, simply pick its number from the 'Choose Unit' dropdown at the top right.")
-
-    # --- DETAIL PANE VIEW LAYER ---
-    else:
-        unit_data = df[df['Plot No.'] == st.session_state.selected_unit].iloc[0]
-        
-        if st.button("⬅️ Back to Table List"):
-            st.session_state.selected_unit = "-- Select --"
-            st.rerun()
-
-        st.header(f"Details: {st.session_state.selected_unit}")
-        
-        # --- PAYMENT HEALTH METRICS ---
-        st.markdown("### 📊 Payment Health")
-        h1, h2, h3, h4 = st.columns(4)
-        
-        past_due = unit_data['Past Due Amount']
-        this_month = unit_data['Amount to Collect for This Month']
-        total_due = unit_data.get('Total Amount to Collect This Month', 0)
-        last_payment = unit_data.get('Last Payment Date', 'No Record')
-
-        h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']}", delta_color="inverse")
-        h2.metric("Due This Month", f"{this_month:,.0f} MMK")
-        h3.metric("Total to Collect", f"{total_due:,.0f} MMK")
-        h4.metric("Last Payment Date", str(last_payment)) 
-        
-        st.divider()
-        
-        # Clean data for information table formatting
-        clean_display = unit_data.drop(['overdue_val'])
-        
-        if 'Past Due Amount' in clean_display:
-            clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
-        if 'Amount to Collect for This Month' in clean_display:
-            clean_display['Amount to Collect for This Month'] = f"{this_month:,.0f} MMK"
-        if 'Total Amount to Collect This Month' in clean_display:
-            clean_display['Total Amount to Collect This Month'] = f"{total_due:,.0f} MMK"
-            
-        if 'Total Paid' in clean_display:
-            clean_display['Total Paid'] = f"{unit_data['Total Paid']:,.0f} MMK"
-        if 'Plot Price' in clean_display:
-            clean_display['Plot Price'] = f"{unit_data['Plot Price']:,.0f} MMK"
-        if 'Remaining Balance' in clean_display:
-            clean_display['Remaining Balance'] = f"{unit_data['Remaining Balance']:,.0f} MMK"
-        if 'Partial (or) Full Payment for Current Month' in clean_display:
-            clean_display['Partial (or) Full Payment for Current Month'] = f"{unit_data['Partial (or) Full Payment for Current Month']:,.0f} MMK"
-        
-        st.table(clean_display.to_frame(name="Information"))
-
-except Exception as e:
-    st.error(f"Application Error: {e}")
+            'Partial (or) Full Payment for Current
