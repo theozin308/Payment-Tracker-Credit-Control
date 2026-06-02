@@ -156,3 +156,57 @@ try:
                 "Total Amount to Collect": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d")
             }
         )
+
+        if len(event.selection.rows) > 0:
+            row_idx = event.selection.rows[0]
+            st.session_state.selected_unit = display_df.iloc[row_idx]['Plot No.']
+            st.rerun()
+
+    # --- DETAIL PANE ---
+    else:
+        unit_data = df[df['Plot No.'] == st.session_state.selected_unit].iloc[0]
+        
+        if st.button("⬅️ Back to Table List"):
+            st.session_state.selected_unit = "-- Select --"
+            st.rerun()
+
+        st.header(f"Details: {st.session_state.selected_unit}")
+        
+        # --- PAYMENT HEALTH ---
+        st.markdown("### 📊 Payment Health")
+        h1, h2, h3, h4 = st.columns(4)
+        
+        past_due = unit_data['Past Due Amount']
+        this_month = unit_data['Amount to Collect for This Month']
+        total_due = unit_data['Total Amount to Collect']
+        last_payment = unit_data.get('Last Payment Date', 'No Record')
+
+        h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']}", delta_color="inverse")
+        h2.metric("Due This Month", f"{this_month:,.0f} MMK")
+        h3.metric("Total to Collect", f"{total_due:,.0f} MMK")
+        h4.metric("Last Payment Date", str(last_payment)) 
+        
+        st.divider()
+        
+        # Full Info Table
+        clean_display = unit_data.drop(['overdue_val'])
+        
+        # Overwrite all numeric variables with localized comma strings + MMK suffix
+        if 'Past Due Amount' in clean_display:
+            clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
+        if 'Amount to Collect for This Month' in clean_display:
+            clean_display['Amount to Collect for This Month'] = f"{this_month:,.0f} MMK"
+        if 'Total Amount to Collect' in clean_display:
+            clean_display['Total Amount to Collect'] = f"{total_due:,.0f} MMK"
+            
+        if 'Total Paid' in clean_display:
+            clean_display['Total Paid'] = f"{unit_data['Total Paid']:,.0f} MMK"
+        if 'Plot Price' in clean_display:
+            clean_display['Plot Price'] = f"{unit_data['Plot Price']:,.0f} MMK"
+        if 'Remaining Balance' in clean_display:
+            clean_display['Remaining Balance'] = f"{unit_data['Remaining Balance']:,.0f} MMK"
+        
+        st.table(clean_display.to_frame(name="Information"))
+
+except Exception as e:
+    st.error(f"Application Error: {e}")
