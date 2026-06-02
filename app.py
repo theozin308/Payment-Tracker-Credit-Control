@@ -7,7 +7,7 @@ st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
 # --- CSS STYLING ---
 st.markdown("""
     <style>
-    /* 💡 PERFECT FIX: This completely targets and hides the checkbox column grid wrapper */
+    /* Hides the default Streamlit dataframe selection checkboxes */
     [data-testid="stDataFrameSelectColumn"] {
         display: none !important;
     }
@@ -160,7 +160,7 @@ try:
             'Action'
         ]
         
-        # Using on_select="rerun" ensures compatibility with your Streamlit environment version
+        # Using on_select="rerun" ensures layout backward-compatibility
         event = st.dataframe(
             rendered_df[base_cols], 
             use_container_width=True, 
@@ -174,7 +174,7 @@ try:
             }
         )
 
-        # Process choice from row selection list
+        # Safely extract selection indexes
         if len(event.selection.rows) > 0:
             row_idx = event.selection.rows[0]
             st.session_state.selected_unit = rendered_df.iloc[row_idx]['Plot No.']
@@ -186,31 +186,4 @@ try:
         
         if st.button("⬅️ Back to Table List"):
             st.session_state.selected_unit = "-- Select --"
-            st.rerun()
-
-        st.header(f"Details: {st.session_state.selected_unit}")
-        
-        # --- PAYMENT HEALTH ---
-        st.markdown("### 📊 Payment Health")
-        h1, h2, h3, h4 = st.columns(4)
-        
-        past_due = unit_data['Past Due Amount']
-        this_month = unit_data['Amount to Collect for This Month']
-        total_due = unit_data.get('Total Amount to Collect This Month', 0)
-        last_payment = unit_data.get('Last Payment Date', 'No Record')
-
-        h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']}", delta_color="inverse")
-        h2.metric("Due This Month", f"{this_month:,.0f} MMK")
-        h3.metric("Total to Collect", f"{total_due:,.0f} MMK")
-        h4.metric("Last Payment Date", str(last_payment)) 
-        
-        st.divider()
-        
-        # Full Info Table
-        clean_display = unit_data.drop(['overdue_val'])
-        
-        if 'Past Due Amount' in clean_display:
-            clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
-        if 'Amount to Collect for This Month' in clean_display:
-            clean_display['Amount to Collect for This Month'] = f"{this_month:,.0f} MMK"
-        if 'Total Amount to Collect
+            st
