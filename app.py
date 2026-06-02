@@ -53,7 +53,10 @@ def get_live_data():
     cols_to_fix = ['Amount to Collect for This Month', 'Past Due Amount', 'Total Amount to Collect']
     for col in cols_to_fix:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
+            # 1. Strip commas and parse as raw shorthand numbers (Lakhs)
+            shorthand_num = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
+            # 2. CONVERSION LAYER: Multiply by 100,000 to get the full MMK amount
+            df[col] = shorthand_num * 100000
 
     # --- FIXED OVERDUE EXTRACTION ---
     # First, parse out the raw number digits
@@ -117,73 +120,6 @@ try:
                 st.rerun()
 
         # --- REVISED FILTER LOGIC ---
-        # A row is a structural completed/advance type if its status says so OR if the text explicitly states "advance"
         is_completed_or_advance = (
             base_filtered_df['Status'].str.lower().str.contains('complete|advance|done', na=False) |
-            base_filtered_df['Months Overdue'].str.lower().str.contains('advance', na=False)
-        )
-
-        if st.session_state.due_filter == "Current":
-            # Current due units: 0 months overdue and NOT complete/advance
-            display_df = base_filtered_df[(base_filtered_df['overdue_val'] == 0) & (~is_completed_or_advance)]
-            
-        elif st.session_state.due_filter == "Overdue":
-            # Genuine overdue units: greater than or equal to 1 month, and NOT complete/advance text
-            display_df = base_filtered_df[(base_filtered_df['overdue_val'] >= 1) & (~is_completed_or_advance)]
-            
-        elif st.session_state.due_filter == "Completed":
-            # Displays anything tagged as complete or advance
-            display_df = base_filtered_df[is_completed_or_advance]
-            
-        else:
-            display_df = base_filtered_df
-
-        st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
-        
-        base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
-        
-        event = st.dataframe(
-            display_df[base_cols], 
-            use_container_width=True, 
-            hide_index=True,
-            on_select="rerun",  
-            selection_mode="single-row"
-        )
-
-        if len(event.selection.rows) > 0:
-            row_idx = event.selection.rows[0]
-            st.session_state.selected_unit = display_df.iloc[row_idx]['Plot No.']
-            st.rerun()
-
-    # --- DETAIL PANE ---
-    else:
-        unit_data = df[df['Plot No.'] == st.session_state.selected_unit].iloc[0]
-        
-        if st.button("⬅️ Back to Table List"):
-            st.session_state.selected_unit = "-- Select --"
-            st.rerun()
-
-        st.header(f"Details: {st.session_state.selected_unit}")
-        
-        # --- PAYMENT HEALTH ---
-        st.markdown("### 📊 Payment Health")
-        h1, h2, h3, h4 = st.columns(4)
-        
-        past_due = unit_data['Past Due Amount']
-        this_month = unit_data['Amount to Collect for This Month']
-        total_due = unit_data['Total Amount to Collect']
-        last_payment = unit_data.get('Last Payment Date', 'No Record')
-
-        h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']}", delta_color="inverse")
-        h2.metric("Due This Month", f"{this_month:,.0f} MMK")
-        h3.metric("Total to Collect", f"{total_due:,.0f} MMK")
-        h4.metric("Last Payment Date", str(last_payment)) 
-        
-        st.divider()
-        
-        # Full Info Table
-        clean_display = unit_data.drop(['overdue_val'])
-        st.table(clean_display.to_frame(name="Information"))
-
-except Exception as e:
-    st.error(f"Application Error: {e}")
+            base_filtered_df['Months Overdue'].str.lower().str.contains('advance
