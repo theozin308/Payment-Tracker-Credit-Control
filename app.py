@@ -53,9 +53,9 @@ def get_live_data():
     cols_to_fix = ['Amount to Collect for This Month', 'Past Due Amount', 'Total Amount to Collect']
     for col in cols_to_fix:
         if col in df.columns:
-            # 1. Strip commas and parse as raw shorthand numbers (Lakhs)
+            # Parse out raw text/commas from sheet
             shorthand_num = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
-            # 2. CONVERSION LAYER: Multiply by 100,000 to get the full MMK amount
+            # Conversion: Shorthand lakhs to full numerical value
             df[col] = shorthand_num * 100000
 
     # --- FIXED OVERDUE EXTRACTION ---
@@ -119,7 +119,7 @@ try:
                 st.session_state.due_filter = "Completed"
                 st.rerun()
 
-        # --- REVISED FILTER LOGIC ---
+        # --- FILTER LOGIC ---
         is_completed_or_advance = (
             base_filtered_df['Status'].str.lower().str.contains('complete|advance|done', na=False) |
             base_filtered_df['Months Overdue'].str.lower().str.contains('advance', na=False)
@@ -138,7 +138,7 @@ try:
         
         base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
         
-        # Formatted main table view so full integers display cleanly with commas
+        # Table view execution with thousands separators configurator active
         event = st.dataframe(
             display_df[base_cols], 
             use_container_width=True, 
@@ -146,7 +146,7 @@ try:
             on_select="rerun",  
             selection_mode="single-row",
             column_config={
-                "Total Amount to Collect": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%d")
+                "Total Amount to Collect": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d")
             }
         )
 
@@ -174,7 +174,6 @@ try:
         total_due = unit_data['Total Amount to Collect']
         last_payment = unit_data.get('Last Payment Date', 'No Record')
 
-        # Variables are already multiplied by 100,000, now adding MMK text strings
         h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']}", delta_color="inverse")
         h2.metric("Due This Month", f"{this_month:,.0f} MMK")
         h3.metric("Total to Collect", f"{total_due:,.0f} MMK")
@@ -185,7 +184,7 @@ try:
         # Full Info Table
         clean_display = unit_data.drop(['overdue_val'])
         
-        # Formatting individual values in the fallback table view
+        # Overwrite fallback table objects with localized comma text strings before passing to UI
         clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
         clean_display['Amount to Collect for This Month'] = f"{this_month:,.0f} MMK"
         clean_display['Total Amount to Collect'] = f"{total_due:,.0f} MMK"
