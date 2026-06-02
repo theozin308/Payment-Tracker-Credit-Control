@@ -21,6 +21,10 @@ st.markdown("""
         height: 3.5em;
         font-weight: bold;
     }
+    /* Clean adjustments for grid layout */
+    div[data-testid="stDataFrame"] iframe {
+        border-radius: 8px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -141,12 +145,11 @@ try:
 
         st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
         
-        # Create fresh view layer tracking updates
+        # Add the clear tracking instruction column at the end
         rendered_df = display_df.copy().reset_index(drop=True)
-        rendered_df['Select Unit'] = False 
+        rendered_df['Action'] = "Go to Detail ➡️"
         
         base_cols = [
-            'Select Unit',
             'Plot No.', 
             'Sales Person', 
             'Customer Name', 
@@ -154,27 +157,29 @@ try:
             'Total Paid',
             'Partial (or) Full Payment for Current Month',
             'Status', 
-            'Months Overdue'
+            'Months Overdue',
+            'Action'
         ]
         
-        # Interactive table container
-        edited_df = st.data_editor(
+        # 💡 FIX: on_select="rows" tracks the selection silently WITHOUT forcing checkboxes
+        event = st.dataframe(
             rendered_df[base_cols], 
             use_container_width=True, 
             hide_index=True,
+            on_select="rows",  
             column_config={
-                "Select Unit": st.column_config.CheckboxColumn("👀 View", help="Check box to view this unit's details instantly", default=False),
                 "Total Amount to Collect This Month": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
                 "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
-                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d")
+                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d"),
+                "Action": st.column_config.TextColumn("Action", help="Click anywhere on this row to open details instantly")
             }
         )
 
-        # Catch active row changes instantly on matching tab layouts
-        for idx, row in edited_df.iterrows():
-            if row['Select Unit'] is True:
-                st.session_state.selected_unit = rendered_df.iloc[idx]['Plot No.']
-                st.rerun()
+        # Handle row selection smoothly in the same tab window
+        if len(event.selection.rows) > 0:
+            row_idx = event.selection.rows[0]
+            st.session_state.selected_unit = rendered_df.iloc[row_idx]['Plot No.']
+            st.rerun()
 
     # --- DETAIL PANE ---
     else:
@@ -205,7 +210,6 @@ try:
         # Full Info Table
         clean_display = unit_data.drop(['overdue_val'])
         
-        # Safely closed formatting loops
         if 'Past Due Amount' in clean_display:
             clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
         if 'Amount to Collect for This Month' in clean_display:
