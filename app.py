@@ -53,7 +53,7 @@ def get_live_data():
     cols_to_fix = [
         'Amount to Collect for This Month', 
         'Past Due Amount', 
-        'Total Amount to Collect',
+        'Total Amount to Collect This Month',
         'Total Paid',
         'Plot Price',
         'Remaining Balance',
