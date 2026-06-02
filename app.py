@@ -69,7 +69,7 @@ def get_live_data():
     
     return df
 
-# --- MAIN APP TRY-BLOCK ---
+# --- MAIN APP ---
 try:
     df = get_live_data()
     st.title("Fortune Commercial City Payment Tracker")
@@ -202,4 +202,16 @@ try:
         if 'Total Amount to Collect This Month' in clean_display:
             clean_display['Total Amount to Collect This Month'] = f"{total_due:,.0f} MMK"
             
-        if 'Total Paid' in clean_
+        if 'Total Paid' in clean_display:
+            clean_display['Total Paid'] = f"{unit_data['Total Paid']:,.0f} MMK"
+        if 'Plot Price' in clean_display:
+            clean_display['Plot Price'] = f"{unit_data['Plot Price']:,.0f} MMK"
+        if 'Remaining Balance' in clean_display:
+            clean_display['Remaining Balance'] = f"{unit_data['Remaining Balance']:,.0f} MMK"
+        if 'Partial (or) Full Payment for Current Month' in clean_display:
+            clean_display['Partial (or) Full Payment for Current Month'] = f"{unit_data['Partial (or) Full Payment for Current Month']:,.0f} MMK"
+        
+        st.table(clean_display.to_frame(name="Information"))
+
+except Exception as e:
+    st.error(f"Application Error: {e}")
