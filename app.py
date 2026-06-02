@@ -7,10 +7,6 @@ st.set_page_config(page_title="FCC Mandalay Payment Tracker", layout="wide")
 # --- CSS STYLING ---
 st.markdown("""
     <style>
-    /* Hides the default Streamlit dataframe selection checkboxes */
-    [data-testid="stDataFrameSelectColumn"] {
-        display: none !important;
-    }
     .stMetric {
         background-color: #f0f2f6;
         padding: 15px;
@@ -30,14 +26,14 @@ st.markdown("""
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1aH4ycuqzoqmoiTx5dp2pqO9ftji79dpleeyfSxI8s5M/gviz/tq?tqx=out:csv"
 
-# --- SESSION STATE ---
+# --- SESSION STATE INITIALIZATION ---
 if "selected_unit" not in st.session_state:
     st.session_state.selected_unit = "-- Select --"
 
 if "due_filter" not in st.session_state:
     st.session_state.due_filter = "All" 
 
-# --- OPTIMIZED CACHING LAYER ---
+# --- DATA CACHING & FETCHING ---
 @st.cache_data(ttl=300) 
 def download_raw_sheet():
     return pd.read_csv(SHEET_URL, dtype=str)
@@ -46,14 +42,12 @@ def get_live_data():
     df = download_raw_sheet().copy()  
     df.columns = df.columns.str.strip() 
     
-    # Cleaning: Remove empty/None rows
+    # Clean empty data rows
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
-    
-    # Global Sort by Plot No.
     df = df.sort_values(by='Plot No.')
     
-    # Numeric Conversion for Health Metrics & Table Columns
+    # Numeric conversions for currency fields
     cols_to_fix = [
         'Amount to Collect for This Month', 
         'Past Due Amount', 
@@ -65,18 +59,17 @@ def get_live_data():
     ]
     for col in cols_to_fix:
         if col in df.columns:
-            # Parse out raw text/commas from sheet
             shorthand_num = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
-            # Conversion: Shorthand lakhs to full numerical value
             df[col] = shorthand_num * 100000
 
-    # --- OVERDUE EXTRACTION ---
+    # Overdue extraction logic
     raw_digits = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
     is_advance = df['Months Overdue'].str.lower().str.contains('advance|paid', na=False)
     df['overdue_val'] = raw_digits.mask(is_advance, -1 * raw_digits)
     
     return df
 
+# --- MAIN APP TRY-BLOCK ---
 try:
     df = get_live_data()
     st.title("Fortune Commercial City Payment Tracker")
@@ -96,16 +89,18 @@ try:
 
     with col_b:
         unit_list = base_filtered_df['Plot No.'].unique()
+        
+        # Keep dropdown select perfectly synced with current view pane
         curr_idx = 0
         if st.session_state.selected_unit in unit_list:
             curr_idx = list(unit_list).index(st.session_state.selected_unit) + 1
             
-        selected_unit_box = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list), index=curr_idx)
+        selected_unit_box = st.selectbox("🎯 Choose Unit to View Details Instantly", options=["-- Select --"] + list(unit_list), index=curr_idx)
         if selected_unit_box != st.session_state.selected_unit:
             st.session_state.selected_unit = selected_unit_box
             st.rerun()
 
-    # --- DASHBOARD VIEW ---
+    # --- DASHBOARD VIEW LAYER ---
     if st.session_state.selected_unit == "-- Select --":
         # QUICK FILTERS
         st.markdown("### Quick Filters")
@@ -128,7 +123,7 @@ try:
                 st.session_state.due_filter = "Completed"
                 st.rerun()
 
-        # --- FILTER LOGIC ---
+        # --- DATA FILTERING LOGIC ---
         is_completed_or_advance = (
             base_filtered_df['Status'].str.lower().str.contains('complete|advance|done', na=False) |
             base_filtered_df['Months Overdue'].str.lower().str.contains('advance', na=False)
@@ -146,7 +141,6 @@ try:
         st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
         
         rendered_df = display_df.copy().reset_index(drop=True)
-        rendered_df['Action'] = "Go to Detail ➡️"
         
         base_cols = [
             'Plot No.', 
@@ -156,34 +150,56 @@ try:
             'Total Paid',
             'Partial (or) Full Payment for Current Month',
             'Status', 
-            'Months Overdue',
-            'Action'
+            'Months Overdue'
         ]
         
-        # Using on_select="rerun" ensures layout backward-compatibility
-        event = st.dataframe(
+        # Displaying a clean standard DataFrame with 0 checkboxes
+        st.dataframe(
             rendered_df[base_cols], 
             use_container_width=True, 
             hide_index=True,
-            on_select="rerun",  
             column_config={
                 "Total Amount to Collect This Month": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
                 "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
-                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d"),
-                "Action": st.column_config.TextColumn("Action", help="Click anywhere on this row to open details instantly")
+                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d")
             }
         )
+        st.info("💡 To view details for any unit, simply pick its number from the 'Choose Unit' dropdown at the top right.")
 
-        # Safely extract selection indexes
-        if len(event.selection.rows) > 0:
-            row_idx = event.selection.rows[0]
-            st.session_state.selected_unit = rendered_df.iloc[row_idx]['Plot No.']
-            st.rerun()
-
-    # --- DETAIL PANE ---
+    # --- DETAIL PANE VIEW LAYER ---
     else:
         unit_data = df[df['Plot No.'] == st.session_state.selected_unit].iloc[0]
         
         if st.button("⬅️ Back to Table List"):
             st.session_state.selected_unit = "-- Select --"
-            st
+            st.rerun()
+
+        st.header(f"Details: {st.session_state.selected_unit}")
+        
+        # --- PAYMENT HEALTH METRICS ---
+        st.markdown("### 📊 Payment Health")
+        h1, h2, h3, h4 = st.columns(4)
+        
+        past_due = unit_data['Past Due Amount']
+        this_month = unit_data['Amount to Collect for This Month']
+        total_due = unit_data.get('Total Amount to Collect This Month', 0)
+        last_payment = unit_data.get('Last Payment Date', 'No Record')
+
+        h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']}", delta_color="inverse")
+        h2.metric("Due This Month", f"{this_month:,.0f} MMK")
+        h3.metric("Total to Collect", f"{total_due:,.0f} MMK")
+        h4.metric("Last Payment Date", str(last_payment)) 
+        
+        st.divider()
+        
+        # Clean data for information table formatting
+        clean_display = unit_data.drop(['overdue_val'])
+        
+        if 'Past Due Amount' in clean_display:
+            clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
+        if 'Amount to Collect for This Month' in clean_display:
+            clean_display['Amount to Collect for This Month'] = f"{this_month:,.0f} MMK"
+        if 'Total Amount to Collect This Month' in clean_display:
+            clean_display['Total Amount to Collect This Month'] = f"{total_due:,.0f} MMK"
+            
+        if 'Total Paid' in clean_
