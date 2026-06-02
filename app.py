@@ -56,7 +56,8 @@ def get_live_data():
         'Total Amount to Collect',
         'Total Paid',
         'Plot Price',
-        'Remaining Balance'
+        'Remaining Balance',
+        'Partial (or) Full Payment for Current Month'
     ]
     for col in cols_to_fix:
         if col in df.columns:
@@ -66,10 +67,7 @@ def get_live_data():
             df[col] = shorthand_num * 100000
 
     # --- FIXED OVERDUE EXTRACTION ---
-    # First, parse out the raw number digits
     raw_digits = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
-    
-    # If the text explicitly contains "advance", treat it as a negative value so it fails the '>= 1' overdue filter
     is_advance = df['Months Overdue'].str.lower().str.contains('advance|paid', na=False)
     df['overdue_val'] = raw_digits.mask(is_advance, -1 * raw_digits)
     
@@ -143,9 +141,19 @@ try:
 
         st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
         
-        base_cols = ['Plot No.', 'Sales Person', 'Customer Name', 'Total Amount to Collect', 'Status', 'Months Overdue']
+        # 💡 ADDED THE TWO REQUESTED COLUMNS TO THE BASE LIST HERE:
+        base_cols = [
+            'Plot No.', 
+            'Sales Person', 
+            'Customer Name', 
+            'Total Amount to Collect', 
+            'Total Paid',
+            'Partial (or) Full Payment for Current Month',
+            'Status', 
+            'Months Overdue'
+        ]
         
-        # Table view execution with thousands separators configurator active
+        # Table view execution with formatting for all financial figures
         event = st.dataframe(
             display_df[base_cols], 
             use_container_width=True, 
@@ -153,7 +161,9 @@ try:
             on_select="rerun",  
             selection_mode="single-row",
             column_config={
-                "Total Amount to Collect": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d")
+                "Total Amount to Collect": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
+                "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
+                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d")
             }
         )
 
@@ -205,6 +215,8 @@ try:
             clean_display['Plot Price'] = f"{unit_data['Plot Price']:,.0f} MMK"
         if 'Remaining Balance' in clean_display:
             clean_display['Remaining Balance'] = f"{unit_data['Remaining Balance']:,.0f} MMK"
+        if 'Partial (or) Full Payment for Current Month' in clean_display:
+            clean_display['Partial (or) Full Payment for Current Month'] = f"{unit_data['Partial (or) Full Payment for Current Month']:,.0f} MMK"
         
         st.table(clean_display.to_frame(name="Information"))
 
