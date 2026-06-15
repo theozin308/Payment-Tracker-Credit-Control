@@ -137,15 +137,4 @@ try:
                 st.session_state.due_filter = "Overdue"
                 st.rerun()
         with c4:
-            if st.button("✅ Completed / Advance", type="primary" if st.session_state.due_filter == "Completed" else "secondary"):
-                st.session_state.due_filter = "Completed"
-                st.rerun()
-
-        # --- FILTER LOGIC ---
-        is_completed_or_advance = (
-            base_filtered_df['Status'].str.lower().str.contains('complete|advance|done', na=False) |
-            base_filtered_df['Months Overdue'].str.lower().str.contains('advance', na=False)
-        )
-
-        if st.session_state.due_filter == "Current":
-            display_df = base_filtered_df[(base_filtered_df['overdue_val'] == 0) & (~is_completed_or_advance
+            if st.button("✅ Completed /
