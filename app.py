@@ -49,6 +49,12 @@ def get_live_data():
     # Global Sort by Plot No.
     df = df.sort_values(by='Plot No.')
     
+    # Standardize Plan casing safely
+    if 'Plan' in df.columns:
+        df['Plan'] = df['Plan'].fillna('Unknown').str.strip()
+    else:
+        df['Plan'] = 'Unknown'
+    
     # Numeric Conversion for Health Metrics & Table Columns
     cols_to_fix = [
         'Amount to Collect for This Month', 
@@ -63,7 +69,7 @@ def get_live_data():
         if col in df.columns:
             # Parse out raw text/commas from sheet
             shorthand_num = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
-            # Conversion: Shorthand lakhs to full numerical value
+            # Conversion: Shorthand lakhs to full numerical value (Lakhs to MMK conversion)
             df[col] = shorthand_num * 100000
 
     # --- OVERDUE EXTRACTION ---
@@ -77,7 +83,6 @@ try:
     df = get_live_data()
     
     # --- GET URL PARAMS FOR ROUTING ---
-    # This reads when a row hyperlink is pressed
     url_params = st.query_params
     if "view_unit" in url_params:
         st.session_state.selected_unit = url_params["view_unit"]
@@ -106,7 +111,6 @@ try:
         selected_unit_box = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list), index=curr_idx)
         if selected_unit_box != st.session_state.selected_unit:
             st.session_state.selected_unit = selected_unit_box
-            # Sync URL parameter on dropdown change
             if selected_unit_box == "-- Select --":
                 st.query_params.clear()
             else:
@@ -115,7 +119,29 @@ try:
 
     # --- DASHBOARD VIEW ---
     if st.session_state.selected_unit == "-- Select --":
-        # QUICK FILTERS
+        
+        # --- NEW SUMMARY VIEW SECTION ---
+        st.markdown("### 📊 Financial Summary View")
+        s1, s2, s3, s4 = st.columns(4)
+        
+        total_portfolio = base_filtered_df['Plot Price'].sum()
+        total_past_due = base_filtered_df['Past Due Amount'].sum()
+        
+        # Segment collection revenues by payment structure type
+        bank_mask = base_filtered_df['Plan'].str.lower() == 'bank'
+        dev_mask = base_filtered_df['Plan'].str.lower() == 'developer'
+        
+        bank_revenue = base_filtered_df[bank_mask]['Total Paid'].sum()
+        dev_revenue = base_filtered_df[dev_mask]['Total Paid'].sum()
+        
+        s1.metric("Total Portfolio Value", f"{total_portfolio:,.0f} MMK")
+        s2.metric("Bank Plan Revenue", f"{bank_revenue:,.0f} MMK", f"{len(base_filtered_df[bank_mask])} plots")
+        s3.metric("Developer Plan Revenue", f"{dev_revenue:,.0f} MMK", f"{len(base_filtered_df[dev_mask])} plots")
+        s4.metric("Total Arrears (Past Due)", f"{total_past_due:,.0f} MMK", delta=f"{len(base_filtered_df[base_filtered_df['Past Due Amount'] > 0])} Delayed Units", delta_color="inverse")
+        
+        st.divider()
+
+        # QUICK FILTERS FOR TABLE
         st.markdown("### Quick Filters")
         c1, c2, c3, c4 = st.columns(4)
         
@@ -151,33 +177,32 @@ try:
         else:
             display_df = base_filtered_df
 
-        st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
+        st.subheader(f"Detailed Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
         
-        # 💡 SOLUTION: Map URL query links to each row to remove checkboxes entirely
         rendered_df = display_df.copy()
         rendered_df['Action'] = rendered_df['Plot No.'].apply(lambda x: f"?view_unit={x}")
         
+        # Integrated 'Plan' into the target data rendering columns list
         base_cols = [
             'Plot No.', 
+            'Plan',
             'Sales Person', 
             'Customer Name', 
             'Total Amount to Collect This Month', 
             'Total Paid',
-            'Partial (or) Full Payment for Current Month',
             'Status', 
             'Months Overdue',
             'Action'
         ]
         
-        # Safe table layout view (Notice: on_select is removed to completely hide checkboxes)
         st.dataframe(
             rendered_df[base_cols], 
             use_container_width=True, 
             hide_index=True,
             column_config={
+                "Plan": st.column_config.TextColumn("Financing Plan"),
                 "Total Amount to Collect This Month": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
                 "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
-                "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d"),
                 "Action": st.column_config.LinkColumn("View Details", display_text="Details ➡️")
             }
         )
@@ -188,7 +213,7 @@ try:
         
         if st.button("⬅️ Back to Table List"):
             st.session_state.selected_unit = "-- Select --"
-            st.query_params.clear() # Clear out URL trace
+            st.query_params.clear() 
             st.rerun()
 
         st.header(f"Details: {st.session_state.selected_unit}")
@@ -200,26 +225,25 @@ try:
         past_due = unit_data['Past Due Amount']
         this_month = unit_data['Amount to Collect for This Month']
         total_due = unit_data.get('Total Amount to Collect This Month', 0)
-        last_payment = unit_data.get('Last Payment Date', 'No Record')
+        plan_type = unit_data.get('Plan', 'Unknown')
 
-        h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']}", delta_color="inverse")
+        h1.metric("Past Due", f"{past_due:,.0f} MMK", delta=f"{unit_data['Months Overdue']} Months Overdue", delta_color="inverse")
         h2.metric("Due This Month", f"{this_month:,.0f} MMK")
         h3.metric("Total to Collect", f"{total_due:,.0f} MMK")
-        h4.metric("Last Payment Date", str(last_payment)) 
+        h4.metric("Financing Layout", str(plan_type)) 
         
         st.divider()
         
-        # Full Info Table
+        # Clean structural payload for explicit unit printout
         clean_display = unit_data.drop(['overdue_val'])
         
-        # Format metrics lists safely
+        # Formatting metrics safely back to strings for presentation view
         if 'Past Due Amount' in clean_display:
             clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
         if 'Amount to Collect for This Month' in clean_display:
             clean_display['Amount to Collect for This Month'] = f"{this_month:,.0f} MMK"
         if 'Total Amount to Collect This Month' in clean_display:
             clean_display['Total Amount to Collect This Month'] = f"{total_due:,.0f} MMK"
-            
         if 'Total Paid' in clean_display:
             clean_display['Total Paid'] = f"{unit_data['Total Paid']:,.0f} MMK"
         if 'Plot Price' in clean_display:
