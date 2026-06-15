@@ -83,4 +83,69 @@ try:
     df = get_live_data()
     
     # --- GET URL PARAMS FOR ROUTING ---
-    url
+    # This reads when a row hyperlink is pressed
+    url_params = st.query_params
+    if "view_unit" in url_params:
+        st.session_state.selected_unit = url_params["view_unit"]
+
+    st.title("Fortune Commercial City Payment Tracker")
+    st.divider()
+
+    # --- ROW 1: PRIMARY FILTERS ---
+    col_a, col_b = st.columns(2)
+
+    with col_a:
+        sales_people = sorted(df['Sales Person'].dropna().unique())
+        selected_sales = st.selectbox("👤 Filter by Sales Person", options=["-- All Sales --"] + list(sales_people))
+
+    # Apply Sales Person Filter to a Master Base DataFrame
+    base_filtered_df = df.copy()
+    if selected_sales != "-- All Sales --":
+        base_filtered_df = df[df['Sales Person'] == selected_sales]
+
+    with col_b:
+        unit_list = base_filtered_df['Plot No.'].unique()
+        curr_idx = 0
+        if st.session_state.selected_unit in unit_list:
+            curr_idx = list(unit_list).index(st.session_state.selected_unit) + 1
+            
+        selected_unit_box = st.selectbox("Choose Unit / Plot No.", options=["-- Select --"] + list(unit_list), index=curr_idx)
+        if selected_unit_box != st.session_state.selected_unit:
+            st.session_state.selected_unit = selected_unit_box
+            if selected_unit_box == "-- Select --":
+                st.query_params.clear()
+            else:
+                st.query_params["view_unit"] = selected_unit_box
+            st.rerun()
+
+    # --- DASHBOARD VIEW ---
+    if st.session_state.selected_unit == "-- Select --":
+        # QUICK FILTERS
+        st.markdown("### Quick Filters")
+        c1, c2, c3, c4 = st.columns(4)
+        
+        with c1:
+            if st.button("📑 All Units", type="primary" if st.session_state.due_filter == "All" else "secondary"):
+                st.session_state.due_filter = "All"
+                st.rerun()
+        with c2:
+            if st.button("🗓️ Current Month Due", type="primary" if st.session_state.due_filter == "Current" else "secondary"):
+                st.session_state.due_filter = "Current"
+                st.rerun()
+        with c3:
+            if st.button("🚨 1+ Month Overdue", type="primary" if st.session_state.due_filter == "Overdue" else "secondary"):
+                st.session_state.due_filter = "Overdue"
+                st.rerun()
+        with c4:
+            if st.button("✅ Completed / Advance", type="primary" if st.session_state.due_filter == "Completed" else "secondary"):
+                st.session_state.due_filter = "Completed"
+                st.rerun()
+
+        # --- FILTER LOGIC ---
+        is_completed_or_advance = (
+            base_filtered_df['Status'].str.lower().str.contains('complete|advance|done', na=False) |
+            base_filtered_df['Months Overdue'].str.lower().str.contains('advance', na=False)
+        )
+
+        if st.session_state.due_filter == "Current":
+            display_df = base_filtered_df[(base_filtered_df['overdue_val'] == 0) & (~is_completed_or_advance
