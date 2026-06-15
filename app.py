@@ -69,7 +69,7 @@ def get_live_data():
         if col in df.columns:
             # Parse out raw text/commas from sheet
             shorthand_num = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
-            # Conversion: Shorthand lakhs to full numerical value (Lakhs to MMK conversion)
+            # Conversion: Shorthand lakhs to full numerical value
             df[col] = shorthand_num * 100000
 
     # --- OVERDUE EXTRACTION ---
@@ -120,24 +120,27 @@ try:
     # --- DASHBOARD VIEW ---
     if st.session_state.selected_unit == "-- Select --":
         
-        # --- NEW SUMMARY VIEW SECTION ---
-        st.markdown("### 📊 Financial Summary View")
+        # --- UNIT-ONLY SUMMARY VIEW SECTION ---
+        st.markdown("### 📊 Operational Summary View")
         s1, s2, s3, s4 = st.columns(4)
         
-        total_portfolio = base_filtered_df['Plot Price'].sum()
-        total_past_due = base_filtered_df['Past Due Amount'].sum()
+        # Count the total number of distinct units allocated
+        total_units_count = len(base_filtered_df['Plot No.'].unique())
         
-        # Segment collection revenues by payment structure type
+        # Segment counts based on Plan types
         bank_mask = base_filtered_df['Plan'].str.lower() == 'bank'
         dev_mask = base_filtered_df['Plan'].str.lower() == 'developer'
         
-        bank_revenue = base_filtered_df[bank_mask]['Total Paid'].sum()
-        dev_revenue = base_filtered_df[dev_mask]['Total Paid'].sum()
+        bank_units_count = len(base_filtered_df[bank_mask])
+        dev_units_count = len(base_filtered_df[dev_mask])
         
-        s1.metric("Total Portfolio Value", f"{total_portfolio:,.0f} MMK")
-        s2.metric("Bank Plan Revenue", f"{bank_revenue:,.0f} MMK", f"{len(base_filtered_df[bank_mask])} plots")
-        s3.metric("Developer Plan Revenue", f"{dev_revenue:,.0f} MMK", f"{len(base_filtered_df[dev_mask])} plots")
-        s4.metric("Total Arrears (Past Due)", f"{total_past_due:,.0f} MMK", delta=f"{len(base_filtered_df[base_filtered_df['Past Due Amount'] > 0])} Delayed Units", delta_color="inverse")
+        # Count only rows where past due amount is legitimately greater than zero
+        delayed_units_count = len(base_filtered_df[base_filtered_df['Past Due Amount'] > 0])
+        
+        s1.metric("Total Managed Units", f"{total_units_count} Plots")
+        s2.metric("Bank Plan Accounts", f"{bank_units_count} Plots")
+        s3.metric("Developer Plan Accounts", f"{dev_units_count} Plots")
+        s4.metric("Delayed Arrears Units", f"{delayed_units_count} Plots", delta="Action Required" if delayed_units_count > 0 else "Clear", delta_color="inverse")
         
         st.divider()
 
@@ -182,7 +185,6 @@ try:
         rendered_df = display_df.copy()
         rendered_df['Action'] = rendered_df['Plot No.'].apply(lambda x: f"?view_unit={x}")
         
-        # Integrated 'Plan' into the target data rendering columns list
         base_cols = [
             'Plot No.', 
             'Plan',
@@ -234,10 +236,8 @@ try:
         
         st.divider()
         
-        # Clean structural payload for explicit unit printout
         clean_display = unit_data.drop(['overdue_val'])
         
-        # Formatting metrics safely back to strings for presentation view
         if 'Past Due Amount' in clean_display:
             clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
         if 'Amount to Collect for This Month' in clean_display:
@@ -251,9 +251,4 @@ try:
         if 'Remaining Balance' in clean_display:
             clean_display['Remaining Balance'] = f"{unit_data['Remaining Balance']:,.0f} MMK"
         if 'Partial (or) Full Payment for Current Month' in clean_display:
-            clean_display['Partial (or) Full Payment for Current Month'] = f"{unit_data['Partial (or) Full Payment for Current Month']:,.0f} MMK"
-        
-        st.table(clean_display.to_frame(name="Information"))
-
-except Exception as e:
-    st.error(f"Application Error: {e}")
+            clean_display['Partial (or) Full Payment for Current Month'] = f"{unit_data['Partial (or) Full Payment for Current Month']:,.0f}
