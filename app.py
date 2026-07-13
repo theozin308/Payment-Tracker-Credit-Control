@@ -69,8 +69,10 @@ def get_live_data():
         if col in df.columns:
             # Parse out raw text/commas from sheet
             shorthand_num = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
-            # Conversion: Shorthand lakhs to full numerical value
-            df[col] = shorthand_num * 100000
+            
+            # Conversion Check: If it looks like raw Lakhs shorthand (e.g. 3.9 instead of 390000), adjust scale
+            # If values in your sheets are already stored fully (like 3900), modify multiplier accordingly.
+            df[col] = shorthand_num * 100000 if shorthand_num.max() < 1000 else shorthand_num
 
     # --- OVERDUE EXTRACTION ---
     raw_digits = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
@@ -83,7 +85,6 @@ try:
     df = get_live_data()
     
     # --- GET URL PARAMS FOR ROUTING ---
-    # This reads when a row hyperlink is pressed
     url_params = st.query_params
     if "view_unit" in url_params:
         st.session_state.selected_unit = url_params["view_unit"]
@@ -137,7 +138,6 @@ try:
                 st.session_state.due_filter = "Overdue"
                 st.rerun()
         with c4:
-            # Fixed the unterminated line break mismatch here
             if st.button("✅ Completed / Advance", type="primary" if st.session_state.due_filter == "Completed" else "secondary"):
                 st.session_state.due_filter = "Completed"
                 st.rerun()
@@ -178,7 +178,7 @@ try:
         
         st.dataframe(
             rendered_df[base_cols], 
-            use_container_width=True, 
+            width='stretch', 
             hide_index=True,
             column_config={
                 "Plan": st.column_config.TextColumn("Plan Type"),
