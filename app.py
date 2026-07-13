@@ -42,25 +42,20 @@ def get_live_data():
     df = download_raw_sheet().copy()  
     df.columns = df.columns.str.strip() 
     
-    # Cleaning: Remove empty/None rows
+    # Cleaning: Keep rows with valid plot tracking numbers
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
     
     # Global Sort by Plot No.
     df = df.sort_values(by='Plot No.')
     
-    # Safe handling/standardization for the Plan column
-    if 'Plan' in df.columns:
-        df['Plan'] = df['Plan'].fillna('-').astype(str).str.strip()
-    else:
-        df['Plan'] = '-'
-        
-    # Safeguard text types for filtering structures
+    # Enforce safe text representations for categories
+    df['Plan'] = df['Plan'].fillna('-').astype(str).str.strip()
     df['Sales Person'] = df['Sales Person'].fillna('Unknown').astype(str).str.strip()
     df['Status'] = df['Status'].fillna('Unknown').astype(str).str.strip()
     df['Months Overdue'] = df['Months Overdue'].fillna('0 month due').astype(str).str.strip()
     
-    # Numeric Conversion tailored exactly to your dataset values
+    # Safe Numerical Cleansing Engine
     cols_to_fix = [
         'Amount to Collect for This Month', 
         'Past Due Amount', 
@@ -72,9 +67,8 @@ def get_live_data():
     ]
     for col in cols_to_fix:
         if col in df.columns:
-            # Strip out any formatting anomalies, spaces, or stray negative symbols safely
+            # Strip out formatting text, stray spaces, and parse cleanly
             cleaned_series = df[col].astype(str).str.replace(',', '').str.replace(' ', '')
-            # Convert to numeric, handle negative remaining balances cleanly
             df[col] = pd.to_numeric(cleaned_series, errors='coerce').fillna(0)
 
     # --- OVERDUE EXTRACTION ---
@@ -147,16 +141,16 @@ try:
 
         # --- FILTER LOGIC ---
         is_completed_or_advance = (
-            base_filtered_df['Status'].str.lower().str.contains('complete|advance|done', na=False) |
+            base_filtered_df['Status'].str.lower().str.contains('complete|advance|done|pending', na=False) |
             base_filtered_df['Months Overdue'].str.lower().str.contains('advance', na=False)
         )
 
         if st.session_state.due_filter == "Current":
-            display_df = base_filtered_df[(base_filtered_df['overdue_val'] == 0) & (~is_completed_or_advance)]
+            display_df = base_filtered_df[(base_filtered_df['overdue_val'] == 0) & (~base_filtered_df['Status'].str.lower().str.contains('overdue', na=False))]
         elif st.session_state.due_filter == "Overdue":
-            display_df = base_filtered_df[(base_filtered_df['overdue_val'] >= 1) & (~is_completed_or_advance)]
+            display_df = base_filtered_df[(base_filtered_df['overdue_val'] >= 1) | (base_filtered_df['Status'].str.lower().str.contains('overdue', na=False))]
         elif st.session_state.due_filter == "Completed":
-            display_df = base_filtered_df[is_completed_or_advance]
+            display_df = base_filtered_df[base_filtered_df['Status'].str.lower().str.contains('complete|done', na=False)]
         else:
             display_df = base_filtered_df
 
@@ -165,7 +159,6 @@ try:
         rendered_df = display_df.copy()
         rendered_df['Action'] = rendered_df['Plot No.'].apply(lambda x: f"?view_unit={x}")
         
-        # Base Columns Layout with Plan Type integrated
         base_cols = [
             'Plot No.', 
             'Plan',
@@ -219,7 +212,6 @@ try:
         
         st.divider()
         
-        # Full Info Table
         clean_display = unit_data.drop(['overdue_val'])
         
         # Format metrics lists safely
