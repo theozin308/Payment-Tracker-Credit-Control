@@ -21,6 +21,25 @@ st.markdown("""
         height: 3.5em;
         font-weight: bold;
     }
+    /* Style for legacy table link visualization */
+    .styled-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 25px 0;
+        font-size: 0.9em;
+        font-family: sans-serif;
+        min-width: 400px;
+    }
+    .styled-table th {
+        background-color: #f0f2f6;
+        color: #31333F;
+        text-align: left;
+        padding: 12px 15px;
+    }
+    .styled-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #dddddd;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -34,7 +53,7 @@ if "due_filter" not in st.session_state:
     st.session_state.due_filter = "All" 
 
 # --- OPTIMIZED CACHING LAYER ---
-@st.cache_data(ttl=60)  # Reduced TTL to quickly catch sheet updates safely
+@st.cache_data(ttl=30)  
 def download_raw_sheet():
     try:
         return pd.read_csv(SHEET_URL, dtype=str)
@@ -50,11 +69,11 @@ def get_live_data():
     df = raw_df.copy()  
     df.columns = df.columns.str.strip() 
     
-    # 1. Strict Cleaning: Keep only rows that actually have valid data
+    # Cleaning: Keep only rows that actually have valid data
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
     
-    # Force clean text string types for key filtering columns to prevent segfaults
+    # Force clean string formatting for structural layout columns
     df['Sales Person'] = df['Sales Person'].fillna('Unknown').astype(str).str.strip()
     df['Status'] = df['Status'].fillna('Outstanding').astype(str).str.strip()
     df['Months Overdue'] = df['Months Overdue'].fillna('0 month due').astype(str).str.strip()
@@ -79,11 +98,8 @@ def get_live_data():
     ]
     for col in cols_to_fix:
         if col in df.columns:
-            # Strip out commas and cleanup text
             cleaned_col = df[col].astype(str).str.replace(',', '').str.strip()
             shorthand_num = pd.to_numeric(cleaned_col, errors='coerce').fillna(0)
-            
-            # Safe row-by-row conversion to prevent evaluation failures on high numbers
             df[col] = shorthand_num.apply(lambda x: x * 100000 if x < 1000 else x)
 
     # --- OVERDUE EXTRACTION ---
@@ -97,7 +113,7 @@ try:
     df = get_live_data()
     
     if df.empty:
-        st.warning("No data found or Google Sheet is completely empty.")
+        st.warning("No data found or Google Sheet connection failed.")
     else:
         # --- GET URL PARAMS FOR ROUTING ---
         url_params = st.query_params
@@ -111,7 +127,6 @@ try:
         col_a, col_b = st.columns(2)
 
         with col_a:
-            # Drop empty names and extract clean array
             sales_people = sorted([sp for sp in df['Sales Person'].unique() if sp and sp != 'Unknown'])
             selected_sales = st.selectbox("👤 Filter by Sales Person", options=["-- All Sales --"] + sales_people)
 
@@ -137,7 +152,6 @@ try:
 
         # --- DASHBOARD VIEW ---
         if st.session_state.selected_unit == "-- Select --":
-            # QUICK FILTERS
             st.markdown("### Quick Filters")
             c1, c2, c3, c4 = st.columns(4)
             
@@ -175,35 +189,55 @@ try:
 
             st.subheader(f"Table View: {st.session_state.due_filter} ({len(display_df)} Units)")
             
-            rendered_df = display_df.copy()
-            rendered_df['Action'] = rendered_df['Plot No.'].apply(lambda x: f"?view_unit={x}")
-            
-            # Base Columns Layout with Plan Type integrated
-            base_cols = [
-                'Plot No.', 
-                'Plan',
-                'Sales Person', 
-                'Customer Name', 
-                'Total Amount to Collect This Month', 
-                'Total Paid',
-                'Partial (or) Full Payment for Current Month',
-                'Status', 
-                'Months Overdue',
-                'Action'
-            ]
-            
-            st.dataframe(
-                rendered_df[base_cols], 
-                width='stretch', 
-                hide_index=True,
-                column_config={
-                    "Plan": st.column_config.TextColumn("Plan Type"),
-                    "Total Amount to Collect This Month": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
-                    "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
-                    "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d"),
-                    "Action": st.column_config.LinkColumn("View Details", display_text="Details ➡️")
-                }
-            )
+            # --- SAFE DATAFRAME REPLACEMENT ENGINE ---
+            # Instead of st.dataframe (which crashes PyArrow C++), we generate clean, fast HTML tables
+            if display_df.empty:
+                st.info("No records match this filter selection.")
+            else:
+                html_rows = ""
+                for _, row in display_df.iterrows():
+                    # Formatted text string metrics to protect memory allocation layers
+                    amt_collect = f"{row['Total Amount to Collect This Month']:,.0f} MMK"
+                    total_paid = f"{row['Total Paid']:,.0f} MMK"
+                    curr_pay = f"{row['Partial (or) Full Payment for Current Month']:,.0f} MMK"
+                    
+                    html_rows += f"""
+                    <tr>
+                        <td><b>{row['Plot No.']}</b></td>
+                        <td>{row['Plan']}</td>
+                        <td>{row['Sales Person']}</td>
+                        <td>{row['Customer Name']}</td>
+                        <td>{amt_collect}</td>
+                        <td>{total_paid}</td>
+                        <td>{curr_pay}</td>
+                        <td><span style='color: {"green" if "complete" in str(row["Status"]).lower() else "red"}; font-weight: bold;'>{row['Status']}</span></td>
+                        <td>{row['Months Overdue']}</td>
+                        <td><a href="?view_unit={row['Plot No.']}" target="_self">Details ➡️</a></td>
+                    </tr>
+                    """
+                
+                table_html = f"""
+                <table class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Plot No.</th>
+                            <th>Plan Type</th>
+                            <th>Sales Person</th>
+                            <th>Customer Name</th>
+                            <th>Total Amount to Collect</th>
+                            <th>Total Paid</th>
+                            <th>Current Month Payment</th>
+                            <th>Status</th>
+                            <th>Months Overdue</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {html_rows}
+                    </tbody>
+                </table>
+                """
+                st.markdown(table_html, unsafe_allow_html=True)
 
         # --- DETAIL PANE ---
         else:
@@ -216,7 +250,6 @@ try:
 
             st.header(f"Details: {st.session_state.selected_unit}")
             
-            # --- PAYMENT HEALTH ---
             st.markdown("### 📊 Payment Health")
             h1, h2, h3, h4 = st.columns(4)
             
@@ -232,17 +265,14 @@ try:
             
             st.divider()
             
-            # Full Info Table
             clean_display = unit_data.drop(['overdue_val'])
             
-            # Format metrics lists safely
             if 'Past Due Amount' in clean_display:
                 clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
             if 'Amount to Collect for This Month' in clean_display:
                 clean_display['Amount to Collect for This Month'] = f"{this_month:,.0f} MMK"
             if 'Total Amount to Collect This Month' in clean_display:
                 clean_display['Total Amount to Collect This Month'] = f"{total_due:,.0f} MMK"
-                
             if 'Total Paid' in clean_display:
                 clean_display['Total Paid'] = f"{unit_data['Total Paid']:,.0f} MMK"
             if 'Plot Price' in clean_display:
