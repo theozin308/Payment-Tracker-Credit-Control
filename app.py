@@ -42,20 +42,20 @@ def get_live_data():
     df = download_raw_sheet().copy()  
     df.columns = df.columns.str.strip() 
     
-    # Cleaning: Remove empty/None rows
+    # Cleaning: Keep valid rows
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
     
     # Global Sort by Plot No.
     df = df.sort_values(by='Plot No.')
     
-    # Standardize column structures to prevent filtering crashes
+    # Enforce safe defaults
     df['Plan'] = df['Plan'].fillna('-').astype(str).str.strip()
     df['Sales Person'] = df['Sales Person'].fillna('Unknown').astype(str).str.strip()
     df['Status'] = df['Status'].fillna('Unknown').astype(str).str.strip()
     df['Months Overdue'] = df['Months Overdue'].fillna('0 month due').astype(str).str.strip()
     
-    # Safe Numerical Cleansing Engine (handles commas and text gracefully)
+    # Numeric Conversion Engine
     cols_to_fix = [
         'Amount to Collect for This Month', 
         'Past Due Amount', 
@@ -95,7 +95,7 @@ try:
         sales_people = sorted(df['Sales Person'].dropna().unique())
         selected_sales = st.selectbox("👤 Filter by Sales Person", options=["-- All Sales --"] + list(sales_people))
 
-    # Apply Sales Person Filter to a Master Base DataFrame
+    # Apply Sales Person Filter
     base_filtered_df = df.copy()
     if selected_sales != "-- All Sales --":
         base_filtered_df = df[df['Sales Person'] == selected_sales]
@@ -117,7 +117,6 @@ try:
 
     # --- DASHBOARD VIEW ---
     if st.session_state.selected_unit == "-- Select --":
-        # QUICK FILTERS
         st.markdown("### Quick Filters")
         c1, c2, c3, c4 = st.columns(4)
         
@@ -189,8 +188,6 @@ try:
             st.rerun()
 
         st.header(f"Details: {st.session_state.selected_unit}")
-        
-        # --- PAYMENT HEALTH ---
         st.markdown("### 📊 Payment Health")
         h1, h2, h3, h4 = st.columns(4)
         
@@ -206,17 +203,14 @@ try:
         
         st.divider()
         
-        # Full Info Table
         clean_display = unit_data.drop(['overdue_val'])
         
-        # Format metrics lists safely
         if 'Past Due Amount' in clean_display:
             clean_display['Past Due Amount'] = f"{past_due:,.0f} MMK"
         if 'Amount to Collect for This Month' in clean_display:
             clean_display['Amount to Collect for This Month'] = f"{this_month:,.0f} MMK"
         if 'Total Amount to Collect This Month' in clean_display:
             clean_display['Total Amount to Collect This Month'] = f"{total_due:,.0f} MMK"
-            
         if 'Total Paid' in clean_display:
             clean_display['Total Paid'] = f"{unit_data['Total Paid']:,.0f} MMK"
         if 'Plot Price' in clean_display:
