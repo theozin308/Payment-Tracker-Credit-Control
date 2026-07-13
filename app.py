@@ -42,20 +42,20 @@ def get_live_data():
     df = download_raw_sheet().copy()  
     df.columns = df.columns.str.strip() 
     
-    # Cleaning: Keep rows with valid plot tracking numbers
+    # Cleaning: Remove empty/None rows
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
     
     # Global Sort by Plot No.
     df = df.sort_values(by='Plot No.')
     
-    # Enforce safe text representations for categories
+    # Standardize column structures to prevent filtering crashes
     df['Plan'] = df['Plan'].fillna('-').astype(str).str.strip()
     df['Sales Person'] = df['Sales Person'].fillna('Unknown').astype(str).str.strip()
     df['Status'] = df['Status'].fillna('Unknown').astype(str).str.strip()
     df['Months Overdue'] = df['Months Overdue'].fillna('0 month due').astype(str).str.strip()
     
-    # Safe Numerical Cleansing Engine
+    # Safe Numerical Cleansing Engine (handles commas and text gracefully)
     cols_to_fix = [
         'Amount to Collect for This Month', 
         'Past Due Amount', 
@@ -67,7 +67,6 @@ def get_live_data():
     ]
     for col in cols_to_fix:
         if col in df.columns:
-            # Strip out formatting text, stray spaces, and parse cleanly
             cleaned_series = df[col].astype(str).str.replace(',', '').str.replace(' ', '')
             df[col] = pd.to_numeric(cleaned_series, errors='coerce').fillna(0)
 
@@ -140,11 +139,6 @@ try:
                 st.rerun()
 
         # --- FILTER LOGIC ---
-        is_completed_or_advance = (
-            base_filtered_df['Status'].str.lower().str.contains('complete|advance|done|pending', na=False) |
-            base_filtered_df['Months Overdue'].str.lower().str.contains('advance', na=False)
-        )
-
         if st.session_state.due_filter == "Current":
             display_df = base_filtered_df[(base_filtered_df['overdue_val'] == 0) & (~base_filtered_df['Status'].str.lower().str.contains('overdue', na=False))]
         elif st.session_state.due_filter == "Overdue":
@@ -212,6 +206,7 @@ try:
         
         st.divider()
         
+        # Full Info Table
         clean_display = unit_data.drop(['overdue_val'])
         
         # Format metrics lists safely
