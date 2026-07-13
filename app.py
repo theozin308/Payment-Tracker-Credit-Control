@@ -34,7 +34,7 @@ if "due_filter" not in st.session_state:
     st.session_state.due_filter = "All" 
 
 # --- OPTIMIZED CACHING LAYER ---
-@st.cache_data(ttl=300) 
+@st.cache_data(ttl=60) 
 def download_raw_sheet():
     return pd.read_csv(SHEET_URL, dtype=str)
 
@@ -49,13 +49,18 @@ def get_live_data():
     # Global Sort by Plot No.
     df = df.sort_values(by='Plot No.')
     
-    # Safe handling/standardization for the new Plan column
+    # Safe handling/standardization for the Plan column
     if 'Plan' in df.columns:
-        df['Plan'] = df['Plan'].fillna('-').str.strip()
+        df['Plan'] = df['Plan'].fillna('-').astype(str).str.strip()
     else:
         df['Plan'] = '-'
+        
+    # Safeguard text types for filtering structures
+    df['Sales Person'] = df['Sales Person'].fillna('Unknown').astype(str).str.strip()
+    df['Status'] = df['Status'].fillna('Unknown').astype(str).str.strip()
+    df['Months Overdue'] = df['Months Overdue'].fillna('0 month due').astype(str).str.strip()
     
-    # Numeric Conversion for Health Metrics & Table Columns
+    # Numeric Conversion tailored exactly to your dataset values
     cols_to_fix = [
         'Amount to Collect for This Month', 
         'Past Due Amount', 
@@ -67,10 +72,10 @@ def get_live_data():
     ]
     for col in cols_to_fix:
         if col in df.columns:
-            # Parse out raw text/commas from sheet
-            shorthand_num = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce').fillna(0)
-            # Conversion: Shorthand lakhs to full numerical value
-            df[col] = shorthand_num * 100000
+            # Strip out any formatting anomalies, spaces, or stray negative symbols safely
+            cleaned_series = df[col].astype(str).str.replace(',', '').str.replace(' ', '')
+            # Convert to numeric, handle negative remaining balances cleanly
+            df[col] = pd.to_numeric(cleaned_series, errors='coerce').fillna(0)
 
     # --- OVERDUE EXTRACTION ---
     raw_digits = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
