@@ -83,7 +83,6 @@ try:
     df = get_live_data()
     
     # --- GET URL PARAMS FOR ROUTING ---
-    # This reads when a row hyperlink is pressed
     url_params = st.query_params
     if "view_unit" in url_params:
         st.session_state.selected_unit = url_params["view_unit"]
@@ -137,7 +136,6 @@ try:
                 st.session_state.due_filter = "Overdue"
                 st.rerun()
         with c4:
-            # Fixed the unterminated line break mismatch here
             if st.button("✅ Completed / Advance", type="primary" if st.session_state.due_filter == "Completed" else "secondary"):
                 st.session_state.due_filter = "Completed"
                 st.rerun()
@@ -178,7 +176,7 @@ try:
         
         st.dataframe(
             rendered_df[base_cols], 
-            use_container_width=True, 
+            width='stretch', 
             hide_index=True,
             column_config={
                 "Plan": st.column_config.TextColumn("Plan Type"),
