@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "reflex": {
+      "type": "http",
+      "url": "https://build.reflex.dev/mcp"
+    }
+  }
+}
