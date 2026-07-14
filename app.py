@@ -42,20 +42,20 @@ def get_live_data():
     df = download_raw_sheet().copy()  
     df.columns = df.columns.str.strip() 
     
-    # Cleaning: Keep valid rows
+    # Cleaning: Keep valid tracking rows
     df = df[df['Plot No.'].notna()]
     df = df[~df['Plot No.'].str.lower().isin(['none', 'nan', '', 'null'])]
     
     # Global Sort by Plot No.
     df = df.sort_values(by='Plot No.')
     
-    # Enforce safe defaults
+    # Enforce safe defaults for categorical values
     df['Plan'] = df['Plan'].fillna('-').astype(str).str.strip()
     df['Sales Person'] = df['Sales Person'].fillna('Unknown').astype(str).str.strip()
     df['Status'] = df['Status'].fillna('Unknown').astype(str).str.strip()
     df['Months Overdue'] = df['Months Overdue'].fillna('0 month due').astype(str).str.strip()
     
-    # Numeric Conversion Engine
+    # Numeric Conversion Engine with Shorthand Multiplier (* 100000)
     cols_to_fix = [
         'Amount to Collect for This Month', 
         'Past Due Amount', 
@@ -67,8 +67,12 @@ def get_live_data():
     ]
     for col in cols_to_fix:
         if col in df.columns:
+            # Strip out commas, spaces, or extra characters safely
             cleaned_series = df[col].astype(str).str.replace(',', '').str.replace(' ', '')
-            df[col] = pd.to_numeric(cleaned_series, errors='coerce').fillna(0)
+            # Convert to numeric float representation
+            numeric_vals = pd.to_numeric(cleaned_series, errors='coerce').fillna(0)
+            # Re-apply the shorthand conversion multiplier
+            df[col] = numeric_vals * 100000
 
     # --- OVERDUE EXTRACTION ---
     raw_digits = pd.to_numeric(df['Months Overdue'].str.extract(r'(\d+)')[0], errors='coerce').fillna(0)
