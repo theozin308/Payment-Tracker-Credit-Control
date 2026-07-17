@@ -156,6 +156,7 @@ try:
         rendered_df = display_df.copy()
         rendered_df['Action'] = rendered_df['Plot No.'].apply(lambda x: f"?view_unit={x}")
         
+        # --- ADDED 'Last Payment Date' TO THE COLUMN LISTS ---
         base_cols = [
             'Plot No.', 
             'Plan',
@@ -166,6 +167,7 @@ try:
             'Partial (or) Full Payment for Current Month',
             'Status', 
             'Months Overdue',
+            'Last Payment Date',  # <-- Inserted here
             'Action'
         ]
         
@@ -178,6 +180,7 @@ try:
                 "Total Amount to Collect This Month": st.column_config.NumberColumn("Total Amount to Collect (MMK)", format="%,d"),
                 "Total Paid": st.column_config.NumberColumn("Total Paid (MMK)", format="%,d"),
                 "Partial (or) Full Payment for Current Month": st.column_config.NumberColumn("Current Month Payment (MMK)", format="%,d"),
+                "Last Payment Date": st.column_config.TextColumn("Last Payment Date"),  # <-- Clean Header Format
                 "Action": st.column_config.LinkColumn("View Details", display_text="Details ➡️")
             }
         )
